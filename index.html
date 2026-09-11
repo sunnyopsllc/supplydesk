@@ -1,0 +1,3413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supply Desk</title>
+<!-- PWA / "Add to Home Screen" — lets this open as its own app icon, full-screen, no browser
+     chrome, on iOS and Android. -->
+<link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjogIlN1cHBseSBEZXNrIiwgInNob3J0X25hbWUiOiAiU3VwcGx5IERlc2siLCAic3RhcnRfdXJsIjogIi4iLCAiZGlzcGxheSI6ICJzdGFuZGFsb25lIiwgImJhY2tncm91bmRfY29sb3IiOiAiI0YzRjRFRiIsICJ0aGVtZV9jb2xvciI6ICIjMkI1RjczIiwgImljb25zIjogW3sic3JjIjogImRhdGE6aW1hZ2Uvc3ZnK3htbDtiYXNlNjQsUEhOMlp5QjRiV3h1Y3owaWFIUjBjRG92TDNkM2R5NTNNeTV2Y21jdk1qQXdNQzl6ZG1jaUlIWnBaWGRDYjNnOUlqQWdNQ0ExTVRJZ05URXlJajQ4Y21WamRDQjNhV1IwYUQwaU5URXlJaUJvWldsbmFIUTlJalV4TWlJZ2NuZzlJamsySWlCbWFXeHNQU0lqTWtJMVJqY3pJaTgrUEhSbGVIUWdlRDBpTWpVMklpQjVQU0l6TXpBaUlHWnZiblF0YzJsNlpUMGlNekF3SWlCMFpYaDBMV0Z1WTJodmNqMGliV2xrWkd4bElqNG1JekV5T0RJek1EczhMM1JsZUhRK1BDOXpkbWMrIiwgInNpemVzIjogIjE5MngxOTIiLCAidHlwZSI6ICJpbWFnZS9zdmcreG1sIn0sIHsic3JjIjogImRhdGE6aW1hZ2Uvc3ZnK3htbDtiYXNlNjQsUEhOMlp5QjRiV3h1Y3owaWFIUjBjRG92TDNkM2R5NTNNeTV2Y21jdk1qQXdNQzl6ZG1jaUlIWnBaWGRDYjNnOUlqQWdNQ0ExTVRJZ05URXlJajQ4Y21WamRDQjNhV1IwYUQwaU5URXlJaUJvWldsbmFIUTlJalV4TWlJZ2NuZzlJamsySWlCbWFXeHNQU0lqTWtJMVJqY3pJaTgrUEhSbGVIUWdlRDBpTWpVMklpQjVQU0l6TXpBaUlHWnZiblF0YzJsNlpUMGlNekF3SWlCMFpYaDBMV0Z1WTJodmNqMGliV2xrWkd4bElqNG1JekV5T0RJek1EczhMM1JsZUhRK1BDOXpkbWMrIiwgInNpemVzIjogIjUxMng1MTIiLCAidHlwZSI6ICJpbWFnZS9zdmcreG1sIn1dfQ==">
+<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9Ijk2IiBmaWxsPSIjMkI1RjczIi8+PHRleHQgeD0iMjU2IiB5PSIzMzAiIGZvbnQtc2l6ZT0iMzAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4mIzEyODIzMDs8L3RleHQ+PC9zdmc+">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9Ijk2IiBmaWxsPSIjMkI1RjczIi8+PHRleHQgeD0iMjU2IiB5PSIzMzAiIGZvbnQtc2l6ZT0iMzAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj4mIzEyODIzMDs8L3RleHQ+PC9zdmc+">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Supply Desk">
+<meta name="theme-color" content="#2B5F73">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --bg:#F3F4EF;
+    --surface:#FFFFFF;
+    --surface-2:#EAEBE3;
+    --line:#DBDCD1;
+    --line-strong:#C7C9BB;
+    --ink:#1B211D;
+    --ink-muted:#5C6459;
+    --ink-faint:#8A9188;
+    --accent:#2B5F73;
+    --accent-strong:#1E4756;
+    --accent-soft:#DEEAEE;
+    --accent-ink:#12333F;
+    --ok:#3A7D44;
+    --ok-soft:#E3EFDE;
+    --warn:#96601A;
+    --warn-soft:#F6E8D2;
+    --critical:#B23A2E;
+    --critical-soft:#F5DEDA;
+    --shadow: 0 1px 2px rgba(20,24,20,0.06), 0 8px 24px -12px rgba(20,24,20,0.18);
+    --font-display:'Fraunces', Georgia, 'Times New Roman', serif;
+    --font-body:'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif;
+    --font-mono:'IBM Plex Mono', SFMono-Regular, Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14181A;
+      --surface:#1B2023;
+      --surface-2:#20272A;
+      --line:#333C40;
+      --line-strong:#455055;
+      --ink:#E9EDEA;
+      --ink-muted:#9AA6A0;
+      --ink-faint:#6C7672;
+      --accent:#7BBBCF;
+      --accent-strong:#9BCEDF;
+      --accent-soft:#20353D;
+      --accent-ink:#BFE3EE;
+      --ok:#71C17D;
+      --ok-soft:#1D3322;
+      --warn:#E2AC52;
+      --warn-soft:#3B2C13;
+      --critical:#E38B7E;
+      --critical-soft:#3C221D;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14181A;
+    --surface:#1B2023;
+    --surface-2:#20272A;
+    --line:#333C40;
+    --line-strong:#455055;
+    --ink:#E9EDEA;
+    --ink-muted:#9AA6A0;
+    --ink-faint:#6C7672;
+    --accent:#7BBBCF;
+    --accent-strong:#9BCEDF;
+    --accent-soft:#20353D;
+    --accent-ink:#BFE3EE;
+    --ok:#71C17D;
+    --ok-soft:#1D3322;
+    --warn:#E2AC52;
+    --warn-soft:#3B2C13;
+    --critical:#E38B7E;
+    --critical-soft:#3C221D;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    color-scheme: dark;
+  }
+
+  *{ box-sizing:border-box; }
+  [hidden]{ display:none !important; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{ font-family:var(--font-display); font-weight:600; text-wrap:balance; margin:0; color:var(--ink); }
+  button, input, select, textarea{ font-family:inherit; font-size:inherit; color:inherit; }
+  table{ font-variant-numeric: tabular-nums; }
+  .mono{ font-family:var(--font-mono); }
+  ::selection{ background:var(--accent-soft); color:var(--accent-ink); }
+
+  a{ color:var(--accent-strong); }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+
+  /* ---------- layout ---------- */
+  #app{ display:flex; min-height:100vh; }
+
+  .sidebar{
+    width:228px; flex:none;
+    background:var(--surface-2);
+    border-right:1px solid var(--line);
+    display:flex; flex-direction:column;
+    padding:22px 16px;
+    gap:28px;
+  }
+  .brand{ display:flex; flex-direction:column; gap:2px; padding:0 8px; }
+  .brand .eyebrow{ font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); font-weight:600; }
+  .brand .name{ font-family:var(--font-display); font-size:22px; font-weight:600; color:var(--ink); line-height:1.15; }
+
+  .nav{ display:flex; flex-direction:column; gap:2px; }
+  .nav button{
+    display:flex; align-items:center; gap:10px;
+    background:none; border:none; text-align:left;
+    padding:9px 10px; border-radius:7px;
+    font-size:14px; font-weight:500; color:var(--ink-muted);
+    cursor:pointer;
+  }
+  .nav button .ic{ font-size:15px; width:18px; text-align:center; }
+  .nav button:hover{ background:var(--surface); color:var(--ink); }
+  .nav button.active{ background:var(--accent-soft); color:var(--accent-ink); }
+  .nav .count{
+    margin-left:auto; font-family:var(--font-mono); font-size:11px;
+    background:var(--surface); border:1px solid var(--line); border-radius:999px;
+    padding:1px 7px; color:var(--ink-muted);
+  }
+  .nav button.active .count{ background:var(--surface); border-color:var(--line-strong); }
+  .nav button.attn .count{ background:var(--critical); border-color:var(--critical); color:#fff; }
+
+  .sidebar-foot{ margin-top:auto; padding:0 8px; display:flex; flex-direction:column; gap:6px; }
+  .save-indicator{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-faint); }
+  .save-indicator .dot{ width:7px; height:7px; border-radius:50%; background:var(--ink-faint); flex:none; }
+  .save-indicator.saving .dot{ background:var(--warn); animation:pulse 1s ease-in-out infinite; }
+  .save-indicator.saved .dot{ background:var(--ok); }
+  .save-indicator.error .dot{ background:var(--critical); }
+  .save-indicator.local .dot{ background:var(--warn); }
+  @media (prefers-reduced-motion:no-preference){
+    @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.35;} }
+  }
+
+  main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:20px 32px; border-bottom:1px solid var(--line);
+    background:var(--bg);
+    position:sticky; top:0; z-index:5;
+  }
+  .topbar h1{ font-size:24px; }
+  .topbar .sub{ font-size:13px; color:var(--ink-muted); margin-top:2px; }
+  .topbar-actions{ display:flex; gap:8px; align-items:center; }
+
+  .view{ padding:24px 32px 56px; display:none; flex-direction:column; gap:20px; }
+  .view.active{ display:flex; }
+
+  .toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .toolbar .search{ position:relative; flex:1; min-width:180px; max-width:320px; }
+  .toolbar input[type="search"]{
+    width:100%; padding:8px 10px 8px 30px; border-radius:7px; border:1px solid var(--line-strong);
+    background:var(--surface); color:var(--ink);
+  }
+  .toolbar .search::before{
+    content:"⌕"; position:absolute; left:9px; top:50%; transform:translateY(-50%);
+    color:var(--ink-faint); font-size:15px; pointer-events:none;
+  }
+  select{
+    padding:7px 9px; border-radius:7px; border:1px solid var(--line-strong);
+    background:var(--surface); color:var(--ink);
+  }
+
+  /* ---------- buttons ---------- */
+  .btn{
+    display:inline-flex; align-items:center; gap:6px; justify-content:center;
+    padding:8px 14px; border-radius:7px; border:1px solid var(--line-strong);
+    background:var(--surface); color:var(--ink); font-weight:600; font-size:13px;
+    cursor:pointer; white-space:nowrap;
+  }
+  .btn:hover{ border-color:var(--ink-faint); }
+  .btn-primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn-primary:hover{ background:var(--accent-strong); border-color:var(--accent-strong); }
+  .btn-quiet{ border-color:transparent; background:transparent; color:var(--ink-muted); }
+  .btn-quiet:hover{ background:var(--surface-2); color:var(--ink); }
+  .btn-danger{ color:var(--critical); }
+  .btn-danger:hover{ border-color:var(--critical); }
+  .btn-sm{ padding:5px 10px; font-size:12px; border-radius:6px; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .btn:disabled:hover{ border-color:var(--line-strong); background:var(--surface); }
+
+  /* ---------- stat tiles ---------- */
+  .stat-row{ display:grid; grid-template-columns:repeat(6,1fr); gap:14px; }
+  @media (max-width:900px){ .stat-row{ grid-template-columns:repeat(2,1fr); } }
+  .stat-tile{
+    background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:16px 18px; display:flex; flex-direction:column; gap:6px; box-shadow:var(--shadow);
+    cursor:pointer; transition:border-color .12s, transform .12s;
+  }
+  .stat-tile:hover{ border-color:var(--accent); }
+  .stat-tile:active{ transform:scale(0.98); }
+  @media (prefers-reduced-motion:reduce){ .stat-tile{ transition:none; } .stat-tile:active{ transform:none; } }
+  .stat-tile .label{ font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); font-weight:600; }
+  .stat-tile .value{ font-family:var(--font-display); font-size:28px; font-weight:600; }
+  .stat-tile.attn .value{ color:var(--critical); }
+
+  .panel{
+    background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .panel-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 18px; border-bottom:1px solid var(--line);
+  }
+  .panel-head h2{ font-size:16px; }
+  .panel-body{ padding:4px 0; }
+  .panel-empty{ padding:28px 18px; text-align:center; color:var(--ink-muted); font-size:13px; }
+  .panel-empty .btn{ margin-top:12px; }
+
+  /* ---------- tables ---------- */
+  /* Every table's own header row freezes in place once its panel needs to scroll — a bounded
+     height + its own vertical scroll turns each .table-wrap into a local scroll container, which
+     is what makes `position:sticky` on its thead cells actually stick (sticky needs a scrolling
+     ancestor; the page itself scrolling isn't enough once overflow-x:auto is in play — see the
+     Inventory-specific override below for why). A short list that fits within this height just
+     renders normally, no visible scrollbar, no behavior change. #inv-panel overrides this with
+     its own viewport-relative sizing, since that table can run to hundreds of rows.  */
+  .table-wrap{ overflow-x:auto; overflow-y:auto; max-height:420px; }
+  table{ width:100%; border-collapse:collapse; }
+  thead th{
+    position:sticky; top:0; z-index:2; background:var(--surface);
+    text-align:left; font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--ink-faint); font-weight:600; padding:10px 18px; border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  /* Inventory: the filter toolbar stays pinned below the sticky topbar, and the row list below
+     it becomes its own scrolling region (capped to the remaining viewport height) so its header
+     row can stay pinned too — a plain page-level sticky header doesn't work here because
+     .table-wrap's overflow-x:auto forces the browser to also treat it as a vertical scroll
+     container, which breaks page-relative sticky positioning for anything inside it. --topbar-h
+     and --inv-toolbar-h are measured/kept in sync in JS since both heights vary by layout. */
+  #inv-toolbar{
+    position:sticky; top:var(--topbar-h, 0px); z-index:6; background:var(--bg);
+    padding:10px 0; margin:-10px 0;
+  }
+  #inv-panel .table-wrap{
+    overflow-y:auto; min-height:200px;
+    max-height:calc(100vh - var(--topbar-h, 90px) - var(--inv-toolbar-h, 56px) - 32px);
+  }
+  #inv-panel thead th{
+    position:sticky; top:0; background:var(--surface); z-index:4;
+  }
+  tbody td{ padding:11px 18px; border-bottom:1px solid var(--line); font-size:13.5px; vertical-align:middle; }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr:hover{ background:var(--surface-2); }
+  td.num, th.num{ text-align:right; font-family:var(--font-mono); }
+  td.actions{ text-align:right; white-space:nowrap; }
+  .cell-primary{ font-weight:600; }
+  .cell-sub{ color:var(--ink-faint); font-size:12px; }
+
+  .pill{
+    display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px;
+    font-size:11.5px; font-weight:600; white-space:nowrap;
+  }
+  .pill::before{ content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .pill-ok{ background:var(--ok-soft); color:var(--ok); }
+  .pill-warn{ background:var(--warn-soft); color:var(--warn); }
+  .pill-critical{ background:var(--critical-soft); color:var(--critical); }
+  .pill-neutral{ background:var(--surface-2); color:var(--ink-muted); }
+  .pill-accent{ background:var(--accent-soft); color:var(--accent-ink); }
+
+  .empty-hero{
+    display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px;
+    padding:60px 24px; color:var(--ink-muted);
+  }
+  .empty-hero .glyph{ font-size:30px; }
+  .empty-hero h2{ font-size:19px; color:var(--ink); }
+  .empty-hero p{ max-width:360px; margin:0; font-size:13.5px; }
+
+  /* ---------- dialogs ---------- */
+  dialog{
+    border:none; border-radius:12px; padding:0; background:var(--surface); color:var(--ink);
+    box-shadow:0 24px 64px -16px rgba(0,0,0,0.35); width:min(560px, 92vw);
+    max-height:88vh;
+  }
+  dialog.wide{ width:min(760px, 94vw); }
+  dialog::backdrop{ background:rgba(15,18,16,0.5); backdrop-filter:blur(1px); }
+  .dlg-head{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+    padding:18px 22px; border-bottom:1px solid var(--line);
+  }
+  .dlg-head h2{ font-size:19px; }
+  .dlg-head .close{ background:none; border:none; color:var(--ink-faint); font-size:18px; cursor:pointer; padding:2px 6px; border-radius:6px; }
+  .dlg-head .close:hover{ background:var(--surface-2); color:var(--ink); }
+  .dlg-body{ padding:18px 22px; overflow-y:auto; max-height:calc(88vh - 130px); display:flex; flex-direction:column; gap:16px; }
+  .dlg-foot{ display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:14px 22px; border-top:1px solid var(--line); flex-wrap:wrap; }
+  .dlg-foot .stretch{ margin-right:auto; display:flex; gap:8px; }
+
+  .field-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field.full{ grid-column:1/-1; }
+  .field label{ font-size:12px; font-weight:600; color:var(--ink-muted); }
+  .field .hint{ font-size:11.5px; color:var(--ink-faint); }
+  .field input, .field select, .field textarea{
+    padding:8px 10px; border-radius:7px; border:1px solid var(--line-strong);
+    background:var(--surface); color:var(--ink); width:100%;
+  }
+  .field textarea{ resize:vertical; min-height:60px; }
+  .field.err input, .field.err select{ border-color:var(--critical); }
+  .field .err-msg{ font-size:11.5px; color:var(--critical); display:none; }
+  .field.err .err-msg{ display:block; }
+
+  fieldset{ border:1px solid var(--line); border-radius:9px; padding:14px 16px; display:flex; flex-direction:column; gap:12px; }
+  legend{ font-size:12.5px; font-weight:700; color:var(--ink); padding:0 6px; }
+
+  .lines-table{ width:100%; border-collapse:collapse; }
+  .lines-table th{ text-align:left; font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.04em; padding:4px 6px; }
+  .lines-table td{ padding:4px 6px; }
+  .lines-table input, .lines-table select{ padding:6px 7px; font-size:13px; }
+  .lines-table .line-total{ font-family:var(--font-mono); font-size:12.5px; color:var(--ink-muted); white-space:nowrap; }
+  .lines-table .rm-line{ background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:15px; padding:4px; }
+  .lines-table .rm-line:hover{ color:var(--critical); }
+  .lines-total-row td{ padding-top:8px; font-weight:700; }
+
+  .status-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .kv{ display:flex; flex-wrap:wrap; gap:6px 22px; font-size:13px; }
+  .kv div{ display:flex; flex-direction:column; gap:2px; }
+  .kv .k{ font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em; }
+  .kv .v{ font-weight:600; }
+
+  /* ---------- toast / banner ---------- */
+  #banner{
+    display:none; align-items:center; gap:10px; justify-content:space-between;
+    background:var(--warn-soft); color:var(--warn); border-bottom:1px solid var(--line);
+    padding:9px 32px; font-size:12.5px; font-weight:600;
+  }
+  #banner.show{ display:flex; }
+  #toast-root{ position:fixed; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:80; }
+  .toast{
+    background:var(--ink); color:var(--bg); padding:10px 16px; border-radius:8px; font-size:13px;
+    box-shadow:var(--shadow); max-width:320px;
+  }
+  :root[data-theme="dark"] .toast{ background:var(--surface); color:var(--ink); border:1px solid var(--line-strong); }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .toast{ background:var(--surface); color:var(--ink); border:1px solid var(--line-strong); } }
+  .toast.error{ background:var(--critical); color:#fff; }
+
+  @media (max-width:860px){
+    #app{ flex-direction:column; }
+    .sidebar{ width:auto; flex-direction:row; align-items:center; padding:12px 16px; gap:16px; overflow-x:auto; }
+    .brand{ padding:0; flex:none; white-space:nowrap; }
+    .brand .eyebrow{ display:none; }
+    .brand .name{ font-size:17px; }
+    .nav{ flex-direction:row; flex:none; }
+    .nav button{ white-space:nowrap; }
+    .sidebar-foot{ margin-top:0; margin-left:auto; padding:0; }
+    .save-indicator span.txt{ display:none; }
+    .topbar{ padding:16px 18px; flex-wrap:wrap; }
+    .view{ padding:18px 18px 40px; }
+    .field-grid{ grid-template-columns:1fr; }
+    .stat-row{ grid-template-columns:1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="banner"><span id="banner-text"></span><button class="btn btn-sm btn-quiet" id="banner-dismiss" type="button">Dismiss</button></div>
+
+<div id="login-screen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);">
+  <form id="form-login" style="width:min(340px, 90vw);background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:28px 26px;display:flex;flex-direction:column;gap:16px;">
+    <div>
+      <div class="eyebrow" style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;">Better Days Co.</div>
+      <div style="font-family:var(--font-display);font-size:24px;font-weight:600;color:var(--ink);">Supply Desk</div>
+    </div>
+    <div class="field">
+      <label for="login-email">Email</label>
+      <input id="login-email" type="email" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label for="login-password">Password</label>
+      <input id="login-password" type="password" autocomplete="current-password" required>
+    </div>
+    <div id="login-error" class="hint" style="color:var(--critical);display:none;"></div>
+    <button type="submit" class="btn btn-primary" id="login-submit">Log in</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="eyebrow">Better Days Co.</div>
+      <div class="name">Supply Desk</div>
+    </div>
+    <nav class="nav" id="nav">
+      <button data-view="dashboard" class="active"><span class="ic">◈</span>Dashboard</button>
+      <button data-view="inventory"><span class="ic">▤</span>Inventory<span class="count" id="nav-count-inventory">0</span></button>
+      <button data-view="pos"><span class="ic">⇄</span>Purchase Orders<span class="count" id="nav-count-pos">0</span></button>
+      <button data-view="vendors"><span class="ic">✎</span>Vendors<span class="count" id="nav-count-vendors">0</span></button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="save-indicator" id="save-indicator"><span class="dot"></span><span class="txt" id="save-text">Loading…</span></div>
+      <button type="button" class="btn btn-sm btn-quiet" id="sign-out-btn" style="justify-content:flex-start;padding-left:0;">Sign out</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div>
+        <h1 id="page-title">Dashboard</h1>
+        <div class="sub" id="page-sub">Where things stand right now</div>
+      </div>
+      <div class="topbar-actions" id="page-actions"></div>
+    </div>
+
+    <section class="view active" id="view-dashboard"></section>
+    <section class="view" id="view-inventory"></section>
+    <section class="view" id="view-pos"></section>
+    <section class="view" id="view-vendors"></section>
+  </main>
+</div>
+
+<div id="toast-root"></div>
+<div id="ask-suggest" hidden style="position:fixed;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;box-shadow:var(--shadow);max-height:280px;overflow-y:auto;z-index:100;"></div>
+
+<!-- Item dialog -->
+<dialog id="dlg-item" class="wide">
+  <form id="form-item">
+    <div class="dlg-head">
+      <h2 id="item-dlg-title">New item</h2>
+      <button type="button" class="close" data-close>✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="field-grid">
+        <div class="field" id="f-sku">
+          <label for="in-sku">SKU</label>
+          <input id="in-sku" name="sku" required placeholder="e.g. PKG-0142">
+          <div class="err-msg">That SKU is already in use.</div>
+        </div>
+        <div class="field" id="f-name">
+          <label for="in-name">Item name</label>
+          <input id="in-name" name="name" required placeholder="e.g. 12oz shipping box">
+          <div class="err-msg">Give the item a name.</div>
+        </div>
+        <div class="field">
+          <label for="in-category">Category</label>
+          <input id="in-category" name="category" list="dl-categories" placeholder="e.g. Packaging">
+          <datalist id="dl-categories"></datalist>
+        </div>
+        <div class="field">
+          <label for="in-uom">Unit of measure</label>
+          <input id="in-uom" name="uom" placeholder="e.g. each, case, box">
+        </div>
+        <div class="field">
+          <label for="in-qty">Qty on hand</label>
+          <input id="in-qty" name="qty" type="number" min="0" step="1" value="0">
+        </div>
+        <div class="field">
+          <label for="in-total-physical-qty">Total physical qty</label>
+          <input id="in-total-physical-qty" name="totalPhysicalQty" type="number" step="1" placeholder="e.g. from Deposco">
+          <div class="hint">Optional — lets Supply Desk flag a mismatch against sellable qty</div>
+        </div>
+        <div class="field">
+          <label for="in-total-sellable-qty">Total sellable qty</label>
+          <input id="in-total-sellable-qty" name="totalSellableQty" type="number" step="1" placeholder="e.g. from Deposco">
+        </div>
+        <div class="field">
+          <label for="in-cost">Unit cost</label>
+          <input id="in-cost" name="cost" type="number" min="0" step="0.01" value="0">
+        </div>
+        <div class="field">
+          <label for="in-reorder-point">Reorder point</label>
+          <input id="in-reorder-point" name="reorderPoint" type="number" min="0" step="1" value="0">
+          <div class="hint">Flag as low stock at or below this qty</div>
+        </div>
+        <div class="field">
+          <label for="in-reorder-qty">Reorder qty</label>
+          <input id="in-reorder-qty" name="reorderQty" type="number" min="0" step="1" value="0">
+          <div class="hint">Suggested qty when placing a new PO</div>
+        </div>
+        <div class="field">
+          <label for="in-sales-per-day">Sales/day</label>
+          <input id="in-sales-per-day" name="salesPerDay" type="number" min="0" step="0.01" value="0">
+          <div class="hint">Average units sold per day</div>
+        </div>
+        <div class="field">
+          <label for="in-target-stock-qty">Target stock qty</label>
+          <input id="in-target-stock-qty" name="targetStockQty" type="number" min="0" step="1" placeholder="e.g. 250">
+          <div class="hint">If set, Request Work Order suggests (this minus current qty) instead of using Sale/day — for items like Variety Packs where velocity isn't tracked</div>
+        </div>
+        <div class="field">
+          <label for="in-lead-time">Lead time (days)</label>
+          <input id="in-lead-time" name="leadTimeDays" type="number" min="0" step="1" value="0">
+          <div class="hint">Time to produce/receive more from the supplier</div>
+        </div>
+        <div class="field">
+          <label for="in-vendor">Primary vendor</label>
+          <select id="in-vendor" name="vendorId"><option value="">No vendor set</option></select>
+        </div>
+        <div class="field">
+          <label for="in-location">Location / bin</label>
+          <input id="in-location" name="location" placeholder="e.g. Rack 3B">
+        </div>
+        <div class="field full">
+          <label for="in-notes">Notes</label>
+          <textarea id="in-notes" name="notes" placeholder="Anything worth remembering about this item"></textarea>
+        </div>
+      </div>
+
+      <fieldset>
+        <legend>Bill of materials</legend>
+        <div class="hint" style="margin-top:-6px;">What building one unit of this item consumes — leave empty if it isn't built from other items (e.g. "-10" items don't need this; they're already handled automatically from their matching -STK/-STKV3 item).</div>
+        <div class="table-wrap">
+          <table class="lines-table">
+            <thead><tr><th style="width:55%">Component</th><th style="width:25%">Qty per unit</th><th style="width:15%">On hand</th><th></th></tr></thead>
+            <tbody id="bom-lines-body"></tbody>
+          </table>
+        </div>
+        <datalist id="dl-bom-items"></datalist>
+        <button type="button" class="btn btn-sm" id="bom-add-line">+ Add component</button>
+      </fieldset>
+    </div>
+    <div class="dlg-foot">
+      <div class="stretch">
+        <button type="button" class="btn btn-danger" id="item-delete" hidden>Delete item</button>
+        <a class="btn btn-sm" id="item-request-wo" href="#" target="_blank" rel="noopener" hidden>Request Work Order</a>
+      </div>
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary" id="item-submit">Add item</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Vendor dialog -->
+<dialog id="dlg-vendor">
+  <form id="form-vendor">
+    <div class="dlg-head">
+      <h2 id="vendor-dlg-title">New vendor</h2>
+      <button type="button" class="close" data-close>✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="field-grid">
+        <div class="field full" id="f-vname">
+          <label for="in-vname">Vendor name</label>
+          <input id="in-vname" name="name" required placeholder="e.g. Northline Packaging Supply">
+          <div class="err-msg">Give the vendor a name.</div>
+        </div>
+        <div class="field">
+          <label for="in-vcontact">Contact name</label>
+          <input id="in-vcontact" name="contact" placeholder="e.g. Priya Shah">
+        </div>
+        <div class="field">
+          <label for="in-vleadtime">Lead time (days)</label>
+          <input id="in-vleadtime" name="leadTime" type="number" min="0" step="1" placeholder="e.g. 7">
+        </div>
+        <div class="field">
+          <label for="in-vemail">Email</label>
+          <input id="in-vemail" name="email" type="email" placeholder="orders@vendor.com">
+        </div>
+        <div class="field">
+          <label for="in-vphone">Phone</label>
+          <input id="in-vphone" name="phone" type="tel" placeholder="(555) 010-0000">
+        </div>
+        <div class="field full">
+          <label for="in-vnotes">Notes</label>
+          <textarea id="in-vnotes" name="notes" placeholder="Payment terms, minimums, quirks worth knowing"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <div class="stretch"><button type="button" class="btn btn-danger" id="vendor-delete" hidden>Delete vendor</button></div>
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary" id="vendor-submit">Add vendor</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- PO dialog -->
+<dialog id="dlg-po" class="wide">
+  <form id="form-po">
+    <div class="dlg-head">
+      <div>
+        <h2 id="po-dlg-title">New purchase order</h2>
+        <div class="sub" id="po-dlg-sub" style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;"></div>
+      </div>
+      <button type="button" class="close" data-close>✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="kv" id="po-kv" style="display:none;"></div>
+      <div class="field-grid">
+        <div class="field" id="f-povendor">
+          <label for="in-po-vendor">Vendor</label>
+          <select id="in-po-vendor" name="vendorId" required></select>
+          <div class="err-msg">Choose which vendor this order goes to.</div>
+        </div>
+        <div class="field">
+          <label for="in-po-expected">Expected delivery</label>
+          <input id="in-po-expected" name="expected" type="date">
+        </div>
+        <div class="field full">
+          <label for="in-po-notes">Notes</label>
+          <textarea id="in-po-notes" name="notes" placeholder="Shipping instructions, PO context, etc."></textarea>
+        </div>
+      </div>
+
+      <fieldset>
+        <legend>Items ordered</legend>
+        <div class="table-wrap">
+          <table class="lines-table">
+            <thead><tr><th style="width:32%">Item</th><th style="width:10%">Days left</th><th style="width:14%">Qty ordered</th><th style="width:16%">Unit cost</th><th style="width:16%">Line total</th><th></th></tr></thead>
+            <tbody id="po-lines-body"></tbody>
+            <tfoot><tr class="lines-total-row"><td colspan="4">Order total</td><td class="line-total" id="po-lines-total">$0.00</td><td></td></tr></tfoot>
+          </table>
+        </div>
+        <button type="button" class="btn btn-sm" id="po-add-line">+ Add line</button>
+        <div class="hint" id="po-lines-hint" style="font-size:11.5px;color:var(--critical);display:none;">Add at least one item to this order.</div>
+      </fieldset>
+
+      <fieldset id="po-receive-fieldset" hidden>
+        <legend>Receive shipment</legend>
+        <div class="hint" style="margin-top:-6px;">Enter how many units arrived. This adds straight to inventory on hand.</div>
+        <div class="table-wrap">
+          <table class="lines-table">
+            <thead><tr><th style="width:38%">Item</th><th style="width:20%">Ordered</th><th style="width:20%">Already received</th><th style="width:22%">Receive now</th></tr></thead>
+            <tbody id="po-receive-body"></tbody>
+          </table>
+        </div>
+      </fieldset>
+    </div>
+    <div class="dlg-foot">
+      <div class="stretch" id="po-status-actions"></div>
+      <button type="button" class="btn" data-close>Close</button>
+      <button type="submit" class="btn btn-primary" id="po-submit">Create purchase order</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Import inventory dialog -->
+<dialog id="dlg-import" class="wide">
+  <div class="dlg-head">
+    <div>
+      <h2>Import inventory</h2>
+      <div class="sub" style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;">Sync on-hand quantities from a spreadsheet — a Deposco export or your own file</div>
+    </div>
+    <button type="button" class="close" data-close>✕</button>
+  </div>
+  <div class="dlg-body">
+    <div id="import-step-source">
+      <div class="field">
+        <label for="import-file">Spreadsheet file</label>
+        <input type="file" id="import-file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <div class="hint">.csv or .xlsx — export from Deposco, or use a file of your own.</div>
+      </div>
+      <div class="field">
+        <label for="import-paste">Or paste CSV text</label>
+        <textarea id="import-paste" style="min-height:90px;" placeholder="sku,name,qty&#10;PKG-0142,12oz shipping box,55"></textarea>
+      </div>
+    </div>
+    <div id="import-step-map" hidden></div>
+  </div>
+  <div class="dlg-foot">
+    <button type="button" class="btn" data-close>Cancel</button>
+    <button type="button" class="btn btn-primary" id="import-parse">Continue</button>
+    <button type="button" class="btn btn-primary" id="import-sync-btn" hidden>Sync inventory</button>
+  </div>
+</dialog>
+
+<!-- Bulk tag Sale/day (or other fields) from a pasted list, for data that doesn't come from a spreadsheet import -->
+<dialog id="dlg-bulk-spd" class="wide">
+  <form id="form-bulk-spd">
+    <div class="dlg-head">
+      <div>
+        <h2>Bulk tag values</h2>
+        <div class="sub" style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;">Set one field on many items at once — filter by category/SKU pattern, or paste an exact SKU list</div>
+      </div>
+      <button type="button" class="close" data-close>✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="field-grid">
+        <div class="field">
+          <label for="bulk-field-select">Field to set</label>
+          <select id="bulk-field-select">
+            <option value="leadTimeDays">Lead time (days)</option>
+            <option value="salesPerDay">Sale/day</option>
+            <option value="reorderPoint">Reorder point</option>
+            <option value="reorderQty">Reorder qty</option>
+            <option value="cost">Unit cost</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:18px;font-size:13px;flex-wrap:wrap;">
+        <label style="display:flex;gap:6px;align-items:center;"><input type="radio" name="bulk-mode" value="filter" checked> Filter rules</label>
+        <label style="display:flex;gap:6px;align-items:center;"><input type="radio" name="bulk-mode" value="list"> Paste a SKU list</label>
+        <label style="display:flex;gap:6px;align-items:center;"><input type="radio" name="bulk-mode" value="formula"> Formula: Reorder point = Lead time × Sale/day</label>
+      </div>
+
+      <div id="bulk-mode-filter">
+        <div id="bulk-rules"></div>
+        <button type="button" class="btn btn-sm" id="bulk-add-rule">+ Add rule</button>
+      </div>
+
+      <div id="bulk-mode-list" hidden>
+        <div class="field">
+          <label for="in-bulk-spd-text">SKU — value</label>
+          <textarea id="in-bulk-spd-text" style="min-height:120px;" placeholder="BG-CAF-PARENT - 213&#10;BG-NON-PARENT - 183&#10;BH-NON-PARENT 53"></textarea>
+        </div>
+      </div>
+
+      <div id="bulk-mode-formula" hidden class="hint">Applies to every item with both a lead time and a sale/day set — reorder point becomes lead time (days) × sale/day, rounded up. Items missing either value are left unchanged.</div>
+
+      <div id="bulk-spd-preview"></div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary" id="bulk-spd-submit" disabled>Apply</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Build kit (convert component stock into a finished/sellable item) -->
+<dialog id="dlg-kit" class="wide">
+  <form id="form-kit">
+    <div class="dlg-head">
+      <div>
+        <h2>Build kit</h2>
+        <div class="sub" style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;">Consume component stock (e.g. loose sticks) to produce a finished, sellable item (e.g. a 10-pack)</div>
+      </div>
+      <button type="button" class="close" data-close>✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="field-grid">
+        <div class="field" id="f-kit-component">
+          <label for="in-kit-component">Component (consumed)</label>
+          <select id="in-kit-component" required></select>
+          <div class="err-msg">Choose the item being used up.</div>
+        </div>
+        <div class="field" id="f-kit-finished">
+          <label for="in-kit-finished">Finished item (produced)</label>
+          <select id="in-kit-finished" required></select>
+          <div class="err-msg">Choose the item being built.</div>
+        </div>
+        <div class="field">
+          <label for="in-kit-ratio">Component units per finished unit</label>
+          <input id="in-kit-ratio" type="number" min="0.0001" step="any" value="10">
+        </div>
+        <div class="field">
+          <label for="in-kit-qty">Finished units to build</label>
+          <input id="in-kit-qty" type="number" min="1" step="1" value="1">
+        </div>
+        <div class="field full">
+          <label for="in-kit-notes">Notes</label>
+          <input id="in-kit-notes" placeholder="e.g. work order #, batch date">
+        </div>
+      </div>
+      <div id="kit-summary" class="kv" style="margin-top:2px;"></div>
+      <div id="kit-history"></div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Build kit</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Confirm dialog -->
+<dialog id="dlg-confirm">
+  <div class="dlg-head"><h2 id="confirm-title">Are you sure?</h2><button type="button" class="close" data-close>✕</button></div>
+  <div class="dlg-body"><p id="confirm-body" style="margin:0;font-size:13.5px;color:var(--ink-muted);"></p></div>
+  <div class="dlg-foot">
+    <button type="button" class="btn" data-close>Cancel</button>
+    <button type="button" class="btn btn-danger" id="confirm-ok">Confirm</button>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ state ============ */
+  const SUPABASE_URL = "https://gomprsflladmbebjahkq.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_xpqA0yD3XLTJILFSxfu15A_tgY4koIq";
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  const LS_KEY = "supply-desk-state-v1"; // last-resort fallback only, when shared storage can't be reached
+
+  function defaultState(){
+    return { items:[], vendors:[], pos:[], kits:[], counters:{ item:1, vendor:1, po:1, kit:1 }, meta:{} };
+  }
+  function normalizeState(s){
+    const d = defaultState();
+    if (!s || typeof s !== "object") return d;
+    return {
+      items: Array.isArray(s.items) ? s.items : [],
+      vendors: Array.isArray(s.vendors) ? s.vendors : [],
+      pos: Array.isArray(s.pos) ? s.pos : [],
+      kits: Array.isArray(s.kits) ? s.kits : [],
+      counters: Object.assign({}, d.counters, s.counters || {}),
+      meta: Object.assign({}, d.meta, (s.meta && typeof s.meta === "object") ? s.meta : {})
+    };
+  }
+
+  let state = defaultState();
+  let realtimeChannel = null;  // live Supabase subscription, once connected
+  let applyingRemoteSnapshot = false; // true while writing an incoming update into `state`, so
+                                       // that render-triggered persist() calls don't echo it back
+  let lastWrittenJSON = null;  // last body we sent via persist() — lets the realtime handler
+                                // recognize "this is just my own write echoing back"
+  let currentView = "dashboard";
+  let saving = false, pendingSave = false;
+
+  /* ============ helpers ============ */
+  function esc(s){
+    return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  // standing rule: "[Wholesale]"-prefixed items are excluded from Supply Desk entirely —
+  // never imported, and cleaned up on load if they slip in some other way.
+  function isWholesaleExcluded(name, sku){
+    const re = /^\[wholesale\]/i;
+    return re.test(String(name || "").trim()) || re.test(String(sku || "").trim());
+  }
+  // standing rule: anything with "bndl" (bundle) in its SKU or name is excluded everywhere,
+  // not just on one tab — same self-healing treatment as [Wholesale].
+  function isBndlExcluded(name, sku){
+    const re = /bndl/i;
+    return re.test(String(name || "")) || re.test(String(sku || ""));
+  }
+  // standing rule: anything with "x-redo" in its SKU or name is excluded everywhere — same
+  // self-healing treatment as [Wholesale] and "bndl".
+  function isXRedoExcluded(name, sku){
+    const re = /x-redo/i;
+    return re.test(String(name || "")) || re.test(String(sku || ""));
+  }
+  // standing rule: every real SKU in this workbook is a hyphenated code with no spaces (e.g.
+  // "BG-CAF-PCH-LMAD-10"). A "SKU" containing a space ("Outer Mailer - L", "Creatine Non Inner
+  // Mailer") is descriptive text from a differently-shaped report sharing the same columns as
+  // a real table (see the "mailers" tab row-45 cap) — never a real item, on any tab.
+  function isMalformedSku(sku){
+    return /\s/.test(String(sku || "").trim());
+  }
+  // standing rule: every real SKU has letters in it (e.g. "BG-NON-PCH-LMAD-STKV3") — a SKU that's
+  // purely digits (like "10") is a quantity or count value that landed in the SKU column by
+  // mistake, same root cause as the space-containing case above, just a different symptom.
+  function isPurelyNumericSku(sku){
+    const s = String(sku || "").trim();
+    return s !== "" && /^\d+$/.test(s);
+  }
+  // standing rule: specific SKUs you've asked to keep out of Supply Desk entirely, regardless
+  // of what tab or category they come in on — add to this list and they stay excluded even if
+  // a future import still has them in the spreadsheet.
+  const MANUALLY_EXCLUDED_SKUS = new Set([
+    "bslp-non-20br-10fp-parent", "bslp-non-10br-20fp-parent", "bh-caf-pnpl-ccnt-scp", "bh-non-ccbr-ccnt-scp",
+    // Merch (BD-) items excluded from inventory reporting entirely, per explicit instruction.
+    "bd-cursv-tote", "bd-hat-patch-brwn", "bd-damaged-rt", "bd-slp-bndl",
+    "bd-kcrw-nvy-ys", "bd-swsh-wlns-wht-l", "bd-kcrw-nvy-yxs", "bd-kcrw-nvy-2t3t", "bd-kcrw-nvy-4t5t",
+    "bd-kcrw-gry-2t3t", "bd-kcrw-gry-4t5t", "bd-kcrw-gry-ys", "bd-kcrw-gry-yxs", "bd-frthr-wht-snd-gwp",
+    "bd-master-box-24", "bd-kids2025-bndl", "bd-immun2025-bndl", "bd-his2025-bndl", "bd-hers2025-bndl",
+    "bd-new2025-bndl", "bd-swsh-nvy-wht-xxl-gwp", "bd-swsh-nvy-wht-l-gwp", "bd-strp-str-3-gwp", "bd-snd-bda-pouch",
+    "bd-swsh-nvy-wht-xxl", "bd-swsh-nvy-wht-l", "bd-strp-str-3", "bd-fnd-bndl", "bd-shkr-btl-gwp",
+    "bd-totes-bag", "bd-hat-east-cst", "bd-hat-hlth-clb", "bd-mailer-summer2025", "bd-frthr-wht-snd",
+    "bd-strtr-bag", "bd-kswsh-wht-2t", "bd-swsh-blk-blk-xxl", "bd-swsh-blk-blk-l", "bd-strtr-box (box)", "bd-strtr-box",
+    "bd-hat-patch-rdtrim", "bd-swsh-grn-xxl", "bd-swsh-grn-l", "bd-swsh-wht-wht-xxl", "bd-swsh-wht-wht-l",
+    "bd-swsh-wht-snd-xxl", "bd-swsh-wht-snd-l", "bd-swsh-strp-choc-xxl", "bd-swsh-strp-choc-l", "bd-swsh-snd-xxl",
+    "bd-swsh-snd-l", "bd-swsh-snd-blk-xxl", "bd-swsh-snd-blk-l", "bd-swsh-rtro-wht-xxl", "bd-swsh-rtro-wht-l",
+    "bd-swsh-nvy-xxl", "bd-swsh-nvy-l", "bd-swsh-gry-nvy-xxl", "bd-swsh-gry-nvy-l", "bd-shkr-btl",
+    "bd-plstc-btl", "bd-kswsh-wht-yxs", "bd-kswsh-wht-ys", "bd-kswsh-nvy-yxs", "bd-kswsh-nvy-ys",
+    "bd-kswsh-nvy-4t", "bd-kswsh-nvy-2t", "bd-kswsh-gry-4t", "bd-kswsh-gry-2t", "bd-infl-box",
+    "bd-hat-sew-cafclb-tan", "bd-hat-prnt-tan", "bd-hat-prnt-grn", "bd-hat-patch-tan", "bd-hat-patch-nvy",
+    "bd-hat-patch-grn", "bd-gls-stw", "bd-gls-cup-str-ld", "bd-crwsks-brnd", "bd-acryl-otgbx",
+    "bcrt-caf-parent", "bd-samplestk-3"
+  ]);
+  function isManuallyExcludedSku(sku){
+    return MANUALLY_EXCLUDED_SKUS.has(String(sku || "").trim().toLowerCase());
+  }
+  // standing rule: on the "mailers" tab specifically, skip anything that looks like a bundle.
+  function isExcludedFromSourceTab(tabName, sku, name){
+    if (String(tabName || "").trim().toLowerCase() !== "mailers") return false;
+    const skuLower = String(sku || "").trim().toLowerCase();
+    const nameLower = String(name || "").trim().toLowerCase();
+    return /bundle/.test(skuLower) || /bundle/.test(nameLower);
+  }
+  // standing rule: any "-mailer" SKU is excluded everywhere (packaging supply, not a real
+  // trackable item) — except this explicit allowlist of SKUs that end in "-mailer" but are
+  // actually real items. Applies regardless of which tab/file the item comes from.
+  const MAILER_ALLOWLIST = new Set([
+    "bd-strtr-mailer", "bp-non-van-mailer", "bp-non-chc-mailer",
+    "bclgn-non-mailer", "bd-outer-mailer-l", "bd-outer-mailer-m"
+  ]);
+  function isMailerExcluded(sku){
+    const skuLower = String(sku || "").trim().toLowerCase();
+    if (MAILER_ALLOWLIST.has(skuLower)) return false;
+    return /-mailer/.test(skuLower);
+  }
+  function fmtMoney(n){
+    n = Number(n) || 0;
+    return "$" + n.toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
+  }
+  function fmtDate(iso){
+    if (!iso) return "—";
+    const d = new Date(iso + "T00:00:00");
+    if (isNaN(d)) return "—";
+    return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+  }
+  function todayISO(){ return new Date().toISOString().slice(0,10); }
+  function uid(key){
+    const n = state.counters[key] = (state.counters[key] || 1);
+    state.counters[key] = n + 1;
+    return key + "-" + n;
+  }
+  function poNumber(n){ return "PO-" + String(n).padStart(4,"0"); }
+
+  function itemById(id){ return state.items.find(i => i.id === id); }
+  function vendorById(id){ return state.vendors.find(v => v.id === id); }
+  function poById(id){ return state.pos.find(p => p.id === id); }
+
+  function itemValue(it){ return (Number(it.qty)||0) * (Number(it.cost)||0); }
+  function poTotal(po){ return po.lines.reduce((s,l) => s + (Number(l.qtyOrdered)||0) * (Number(l.cost)||0), 0); }
+  function poReceivedTotal(po){ return po.lines.reduce((s,l) => s + (Number(l.qtyReceived)||0), 0); }
+  function poOrderedTotal(po){ return po.lines.reduce((s,l) => s + (Number(l.qtyOrdered)||0), 0); }
+
+  function stockStatus(it){
+    const qty = Number(it.qty)||0, rp = Number(it.reorderPoint)||0;
+    if (qty <= 0) return { key:"critical", label:"Out of stock" };
+    if (qty <= rp) return { key:"warn", label:"Low stock" };
+    return { key:"ok", label:"In stock" };
+  }
+  // days of on-hand stock left at the item's current sale rate; null when there's no sale/day
+  // figure to divide by (can't be computed, not "infinite" — kept out of the low-runway list).
+  function daysOfStock(it){
+    const spd = Number(it.salesPerDay) || 0;
+    if (spd <= 0) return null;
+    return (Number(it.qty) || 0) / spd;
+  }
+  // item.openWorkOrder — {number, qty, dueDate} — is synced in from Deposco's open work orders
+  // (matched by kit output SKU), not something entered in Supply Desk itself. Shown as a small
+  // pill right under the SKU wherever the item's row appears.
+  function openWorkOrderPill(it){
+    const wo = it.openWorkOrder;
+    if (!wo) return "";
+    // dueDate comes from Deposco as a full ISO datetime (e.g. "2026-09-17T00:00:00-05:00") —
+    // fmtDate expects a bare "YYYY-MM-DD", so take just the date portion.
+    const dueDateOnly = String(wo.dueDate || "").slice(0, 10);
+    return `<div class="cell-sub" style="margin-top:2px;"><span class="pill pill-accent" title="Synced from Deposco">Open WO #${esc(wo.number)} · ${Number(wo.qty)||0} · due ${fmtDate(dueDateOnly)}</span></div>`;
+  }
+
+  /* ============ work order request (Launch Fulfillment's Google Form) ============ */
+  // Pre-fills their "Work Order Request" form (docs.google.com/forms/.../1FAIpQLSfYC-HUT-
+  // NWSYnWPPA39Ys0beFyB51ugCbXu4AboufkppfDHw) via its entry IDs, reverse-engineered from the
+  // form's own embedded FB_PUBLIC_LOAD_DATA_ structure — Google doesn't expose these any other
+  // way to a non-owner. Assumes the "Have we done a Work Order for this SKU before?" branch is
+  // "Yes" (these are recurring -10 kits, not first-time setups); that branch's follow-up
+  // question is just Output SKU/QTY, name, and company. Opens for the person to review and
+  // submit themselves — this never submits on its own.
+  const WORK_ORDER_FORM_BASE = "https://docs.google.com/forms/d/e/1FAIpQLSfYC-HUT-NWSYnWPPA39Ys0beFyB51ugCbXu4AboufkppfDHw/viewform";
+  const WORK_ORDER_WAREHOUSE = "Launch Utah";
+  const WORK_ORDER_COMPANY = "Better Days Co.";
+  const WORK_ORDER_REQUESTER_NAME = "Will"; // pre-filled as a starting point — edit on the form if wrong
+  const WORK_ORDER_TARGET_DAYS = 45; // suggested qty tops the item up to this many days of stock
+  function suggestedWorkOrderQty(it){
+    let raw;
+    if (Number.isFinite(it.targetStockQty) && it.targetStockQty > 0){
+      // explicit target level set (e.g. Variety Packs, where Sale/day isn't tracked) — top up to
+      // that level directly rather than using the Sale/day formula below.
+      raw = it.targetStockQty - (Number(it.qty) || 0);
+    } else {
+      const spd = Number(it.salesPerDay) || 0;
+      raw = spd > 0 ? (WORK_ORDER_TARGET_DAYS * spd - (Number(it.qty) || 0)) : (Number(it.reorderQty) || 10);
+    }
+    // rounded UP to the nearest 10 — these are 10-packs, and a Work Order is requested in round
+    // multiples, not built one unit short of a full pack.
+    return Math.max(10, Math.ceil(raw / 10) * 10);
+  }
+  // How much loose-stick component is needed to kit `outputQty` finished 10-packs, and which
+  // variant to reference — prefers -STK, falls back to -STKV3 only when -STK is out of stock
+  // (per explicit instruction: use one or the other, never both). Ratio is 10 component units
+  // per finished unit, matching Build kit's own default (these are literally "10 packs").
+  const KIT_COMPONENT_RATIO = 10;
+  function suggestedInputSkuNote(it){
+    // A real Bill of Materials, if one's been entered — lists every component at its per-unit
+    // qty (not scaled by the batch's suggested output qty, per explicit instruction).
+    if (Array.isArray(it.bom) && it.bom.length){
+      const lines = it.bom.map(b => {
+        const comp = itemById(b.componentId);
+        return comp ? `${comp.sku} - ${Number(b.qty)||0} units` : null;
+      }).filter(Boolean);
+      if (lines.length) return lines.join("\n");
+    }
+    // Otherwise fall back to the built-in -STK/-STKV3 inference (this is how plain "-10" items
+    // work without needing an explicit BOM entered).
+    const stk = findKitVariant(it.sku, "stk");
+    const stkv3 = findKitVariant(it.sku, "stkv3");
+    const component = (stk && (Number(stk.qty) || 0) > 0) ? stk
+      : (stkv3 && (Number(stkv3.qty) || 0) > 0) ? stkv3
+      : (stk || stkv3 || null);
+    if (!component) return "";
+    return `${component.sku} - ${KIT_COMPONENT_RATIO} units`;
+  }
+  function buildWorkOrderFormUrl(it, qty){
+    // Email isn't prefillable — Google Forms binds that specific question to whichever Google
+    // account is signed in when the form is opened, not a regular fillable entry. If the
+    // person is signed in as operations@betterdaysco.com it fills itself in; otherwise they
+    // type it in on the form.
+    const params = new URLSearchParams({
+      usp: "pp_url",
+      "entry.282147506": WORK_ORDER_WAREHOUSE,                    // Warehouse
+      "entry.1205671987": "Yes",                                  // Have we done a Work Order for this SKU before?
+      "entry.824867373": `${it.sku} - ${qty} units`,              // Output SKU and QTY
+      "entry.2088867355": suggestedInputSkuNote(it),               // If there are updates to the input SKUs please specify
+      "entry.1884097815": "None",                                 // Any additional instructions for this work order
+      "entry.1608387938": WORK_ORDER_COMPANY,                     // Company Name
+      "entry.1023426212": WORK_ORDER_REQUESTER_NAME               // Your Name
+    });
+    return `${WORK_ORDER_FORM_BASE}?${params.toString()}`;
+  }
+
+  /* ============ ask a question (pattern-matched lookups, not open-ended AI) ============ */
+  // Handles list-style questions ("which SKUs have less than 30 days on hand?") — returns an
+  // HTML string to render, or null if the question doesn't match this pattern (falls through
+  // to the single-item answerQuestion below). Only items with a sale/day figure are considered,
+  // same as the "Running low" dashboard panel.
+  function tryListAnswer(q){
+    const qLower = q.toLowerCase();
+    if (!/\bday/.test(qLower)) return null;
+    if (!/(hand|left|stock|supply|runway)/.test(qLower)) return null;
+    const ltMatch = qLower.match(/(?:less than|under|below|fewer than)\s*(\d+(?:\.\d+)?)/);
+    const gtMatch = qLower.match(/(?:more than|over|above|greater than)\s*(\d+(?:\.\d+)?)/);
+    // no comparison word ("which SKUs have 40 days left?") — treat as an exact match against
+    // the same whole-day number shown in the table (Math.floor(days)), since that's what the
+    // person actually sees as "N days left".
+    const eqMatch = qLower.match(/(\d+(?:\.\d+)?)\s*days?/);
+    let cmp, threshold;
+    if (ltMatch){ cmp = "<"; threshold = Number(ltMatch[1]); }
+    else if (gtMatch){ cmp = ">"; threshold = Number(gtMatch[1]); }
+    else if (eqMatch){ cmp = "="; threshold = Number(eqMatch[1]); }
+    else return null;
+    if (!Number.isFinite(threshold)) return null;
+
+    const matches = state.items
+      .map(i => ({ item:i, days: daysOfStock(i) }))
+      .filter(x => x.days !== null && (
+        cmp === "<" ? x.days < threshold :
+        cmp === ">" ? x.days > threshold :
+        Math.floor(x.days) === Math.floor(threshold)
+      ))
+      .sort((a,b) => a.days - b.days);
+
+    const dirWord = cmp === "<" ? "under" : cmp === ">" ? "over" : "at";
+    if (matches.length === 0){
+      return `<div>No SKUs with a sale/day figure are ${dirWord} ${threshold} days of stock.</div>`;
+    }
+    return `
+      <div style="margin-bottom:6px;">${matches.length} SKU${matches.length===1?"":"s"} ${dirWord} ${threshold} days of stock:</div>
+      <div class="table-wrap" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;">
+        <table>
+          <thead><tr><th>Item</th><th class="num">On hand</th><th class="num">Sale/day</th><th class="num">Days left</th></tr></thead>
+          <tbody>
+            ${matches.map(({item, days}) => {
+              const critical = days < 14;
+              return `<tr>
+                <td><div class="cell-primary">${esc(item.name)}</div><div class="cell-sub mono">${esc(item.sku)}</div></td>
+                <td class="num">${Number(item.qty)||0}</td>
+                <td class="num">${Number(item.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2})}</td>
+                <td class="num"><span class="pill pill-${critical?"critical":"warn"}">${Math.floor(days)}d</span></td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+  function findItemForQuestion(q){
+    const qLower = q.toLowerCase();
+    const skuMatches = state.items.filter(i => i.sku && qLower.includes(i.sku.toLowerCase()));
+    if (skuMatches.length){
+      // prefer the most specific (longest) SKU match, so a short SKU that happens to be a
+      // substring of a longer one in the question doesn't win by accident
+      skuMatches.sort((a,b) => b.sku.length - a.sku.length);
+      return [skuMatches[0]];
+    }
+    const byName = state.items.filter(i => i.name && qLower.includes(i.name.toLowerCase()));
+    return byName;
+  }
+  function answerQuestion(q){
+    if (state.items.length === 0) return "There's nothing in inventory yet to ask about.";
+    const matches = findItemForQuestion(q);
+    if (matches.length === 0){
+      return `I couldn't match that to an item. Try including the exact SKU, like "${state.items[0].sku}".`;
+    }
+    if (matches.length > 1){
+      return `That matches ${matches.length} items: ${matches.slice(0,5).map(i=>`${i.name} (${i.sku})`).join(", ")}${matches.length>5?", …":""}. Try asking with the exact SKU.`;
+    }
+    const item = matches[0];
+    const qLower = q.toLowerCase();
+    const qty = Number(item.qty) || 0;
+    const days = daysOfStock(item);
+    const spdText = () => Number(item.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2});
+
+    if (/day.*(hand|left|stock|supply)|(hand|left|stock).*day|runway|how long|when.*(run out|out of stock)/.test(qLower)){
+      if (days === null) return `${item.name} (${item.sku}) has ${qty} on hand, but there's no sale/day figure set for it, so I can't estimate days of stock left.`;
+      const d = Math.floor(days);
+      return `${item.name} (${item.sku}) has ${qty} on hand and sells about ${spdText()}/day — that's roughly ${d} day${d===1?"":"s"} of stock left.`;
+    }
+    if (/reorder point|when.*reorder|reorder at|low stock (point|level)/.test(qLower)){
+      return `The reorder point for ${item.name} (${item.sku}) is ${Number(item.reorderPoint)||0} — it shows as low stock at or below that.`;
+    }
+    if (/reorder qty|how much.*(order|reorder)|suggested (order|qty)/.test(qLower)){
+      return `The suggested reorder quantity for ${item.name} (${item.sku}) is ${Number(item.reorderQty)||0}.`;
+    }
+    if (/cost|price/.test(qLower)){
+      return `${item.name} (${item.sku}) costs ${fmtMoney(item.cost)} per unit.`;
+    }
+    if (/vendor|supplier|who.*(from|supply)/.test(qLower)){
+      const v = vendorById(item.vendorId);
+      return v ? `${item.name} (${item.sku}) is sourced from ${v.name}.` : `${item.name} (${item.sku}) doesn't have a vendor set yet.`;
+    }
+    if (/status|low stock\??\s*$|out of stock|in stock/.test(qLower)){
+      const st = stockStatus(item);
+      return `${item.name} (${item.sku}) is currently ${st.label.toLowerCase()} (${qty} on hand).`;
+    }
+    if (/sale|sold|velocity|selling/.test(qLower)){
+      return item.salesPerDay ? `${item.name} (${item.sku}) sells about ${spdText()} units/day.` : `There's no sale/day figure recorded for ${item.name} (${item.sku}) yet.`;
+    }
+    if (/location|bin|where/.test(qLower)){
+      return item.location ? `${item.name} (${item.sku}) is at ${item.location}.` : `No location/bin is set for ${item.name} (${item.sku}).`;
+    }
+    if (/how many|on hand|in stock|quantity|qty/.test(qLower)){
+      return `${item.name} (${item.sku}) has ${qty} on hand.`;
+    }
+    // fallback: a general summary, so an unrecognized question still gets something useful
+    const st = stockStatus(item);
+    const bits = [`${qty} on hand`, st.label.toLowerCase()];
+    if (item.salesPerDay) bits.push(`~${spdText()}/day${days!==null ? ` (${Math.floor(days)} days left)` : ""}`);
+    if (item.cost) bits.push(`${fmtMoney(item.cost)}/unit`);
+    return `${item.name} (${item.sku}): ${bits.join(", ")}.`;
+  }
+  function poStatusMeta(status){
+    switch(status){
+      case "draft": return { label:"Draft", cls:"pill-neutral" };
+      case "sent": return { label:"Sent", cls:"pill-accent" };
+      case "partial": return { label:"Partially received", cls:"pill-warn" };
+      case "received": return { label:"Received", cls:"pill-ok" };
+      case "cancelled": return { label:"Cancelled", cls:"pill-critical" };
+      default: return { label:status, cls:"pill-neutral" };
+    }
+  }
+  function recomputePoStatus(po){
+    if (po.status === "cancelled") return;
+    const ordered = poOrderedTotal(po), received = poReceivedTotal(po);
+    if (received <= 0){
+      if (po.status === "draft" || po.status === "sent") return;
+      po.status = "sent";
+    } else if (received < ordered){
+      po.status = "partial";
+    } else {
+      po.status = "received";
+      if (!po.receivedDate) po.receivedDate = todayISO();
+    }
+  }
+  // Category names carried over from the product-type tabs in the master spreadsheet (excluding
+  // "master" itself and the PO tabs, which aren't product categories) — offered as options even
+  // before any item has been tagged with them.
+  const PRESET_CATEGORIES = [
+    "10 Packs", "Sticks", "Bags", "Vitamins",
+    "15 Retail", "Online", "Ecomm", "Variety Packs", "Mailers", "Merch"
+  ];
+  function categories(){
+    const used = state.items.map(i => (i.category||"").trim()).filter(Boolean);
+    return [...new Set([...PRESET_CATEGORIES, ...used])].sort((a,b)=>a.localeCompare(b));
+  }
+
+  /* ============ persistence ============ */
+  function setSaveState(kind, text){
+    const el = document.getElementById("save-indicator");
+    el.className = "save-indicator " + kind;
+    document.getElementById("save-text").textContent = text;
+  }
+  function showBanner(text){
+    const b = document.getElementById("banner");
+    document.getElementById("banner-text").textContent = text;
+    b.classList.add("show");
+  }
+  function hideBanner(){ document.getElementById("banner").classList.remove("show"); }
+
+  function loadLocalFallback(){
+    try{
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw){ state = normalizeState(JSON.parse(raw)); return; }
+    }catch(e){}
+    state = defaultState();
+  }
+
+  // Loads the initial state from Supabase and resolves once `state` is ready — boot() awaits
+  // this before running one-time cleanup rules. Also opens a realtime subscription so `state`
+  // stays current live from here on: other devices' edits (and this page's own writes settling)
+  // arrive automatically, with no further "load" call needed.
+  function subscribeState(){
+    // Never let boot() hang forever no matter what goes wrong (a slow network, a dropped
+    // connection) — after 8s, fall back to whatever's in this browser and let the page come up
+    // rather than sit on "Loading…" forever. If the real connection completes after this fires,
+    // its own code still runs and takes over normally.
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      resolveOuter();
+    };
+    let resolveOuter;
+    const outer = new Promise(res => { resolveOuter = res; });
+    setTimeout(() => {
+      if (settled) return;
+      loadLocalFallback();
+      setSaveState("error", "Shared storage is taking too long — saved to this browser only");
+      showBanner("Shared storage didn't respond, so changes are being saved only in this browser for now. Try reloading Supply Desk.");
+      settle();
+    }, 8000);
+
+    (async () => {
+      try{
+        const { data, error } = await supabaseClient.from("app_state").select("data").eq("id", 1).single();
+        if (error) throw error;
+
+        if (data && data.data && Object.keys(data.data).length){
+          state = normalizeState(data.data);
+        } else {
+          // nothing saved yet — seed from whatever's in this browser's local copy (carries an
+          // existing device's data over the first time it opens with shared storage available),
+          // or start empty otherwise — then write it through immediately so the migration
+          // actually takes, rather than waiting on some later edit to trigger the first save.
+          loadLocalFallback();
+          await persist();
+        }
+        renderAll();
+        setSaveState("saved", "Saved");
+        settle();
+
+        realtimeChannel = supabaseClient
+          .channel("app_state_changes")
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state", filter: "id=eq.1" }, (payload) => {
+            if (applyingRemoteSnapshot) return;
+            const incomingJSON = JSON.stringify(payload.new.data);
+            if (incomingJSON === lastWrittenJSON) return; // just our own write echoing back
+            applyingRemoteSnapshot = true;
+            state = normalizeState(payload.new.data);
+            applyingRemoteSnapshot = false;
+            renderAll();
+            setSaveState("saved", "Saved");
+          })
+          .subscribe();
+      }catch(e){
+        loadLocalFallback();
+        setSaveState("local", "Saved to this browser only");
+        showBanner("Couldn't connect to shared storage" + ((e && e.message) ? (" (" + e.message + ")") : "") + ", so changes are being saved only in this browser.");
+        settle();
+      }
+    })();
+
+    return outer;
+  }
+
+  async function persist(){
+    if (applyingRemoteSnapshot) return; // don't write back what a realtime update just gave us
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+
+    if (saving){ pendingSave = true; return; }
+    saving = true;
+    setSaveState("saving", "Saving…");
+    lastWrittenJSON = JSON.stringify(state);
+    try{
+      const { error } = await supabaseClient.from("app_state")
+        .update({ data: state, updated_at: new Date().toISOString() })
+        .eq("id", 1);
+      if (error) throw error;
+      hideBanner();
+      setSaveState("saved", "Saved");
+    }catch(e){
+      setSaveState("error", "Couldn't save");
+      showToast((e && e.message) ? ("Couldn't save changes: " + e.message) : "Couldn't save changes. Your edits are kept in this browser for now.", true);
+    }
+    saving = false;
+    if (pendingSave){ pendingSave = false; persist(); }
+  }
+
+  function commit(){ renderAll(); persist(); }
+
+  /* ============ toasts ============ */
+  function showToast(msg, isError){
+    const root = document.getElementById("toast-root");
+    const t = document.createElement("div");
+    t.className = "toast" + (isError ? " error" : "");
+    t.textContent = msg;
+    root.appendChild(t);
+    setTimeout(() => { t.style.opacity = "0"; t.style.transition = "opacity .3s"; setTimeout(()=>t.remove(), 320); }, 3800);
+  }
+
+  /* ============ confirm dialog ============ */
+  function confirmDialog(title, body){
+    return new Promise(resolve => {
+      const dlg = document.getElementById("dlg-confirm");
+      document.getElementById("confirm-title").textContent = title;
+      document.getElementById("confirm-body").textContent = body;
+      const ok = document.getElementById("confirm-ok");
+      function cleanup(v){ dlg.close(); ok.removeEventListener("click", onOk); resolve(v); }
+      function onOk(){ cleanup(true); }
+      ok.addEventListener("click", onOk);
+      dlg.addEventListener("close", () => resolve(false), { once:true });
+      dlg.showModal();
+    });
+  }
+
+  /* ============ rendering: shell ============ */
+  const viewMeta = {
+    dashboard: { title:"Dashboard", sub:"Where things stand right now" },
+    inventory: { title:"Inventory", sub:"Everything you keep on hand" },
+    pos: { title:"Purchase Orders", sub:"What's on order and what's arrived" },
+    vendors: { title:"Vendors", sub:"Who you order from" }
+  };
+
+  function renderAll(){
+    renderNav();
+    renderPageChrome();
+    renderView();
+  }
+
+  function renderNav(){
+    document.getElementById("nav-count-inventory").textContent = state.items.length;
+    document.getElementById("nav-count-pos").textContent = state.pos.filter(p => p.status==="sent"||p.status==="partial").length;
+    document.getElementById("nav-count-vendors").textContent = state.vendors.length;
+    const lowCount = state.items.filter(i => stockStatus(i).key !== "ok").length;
+    const invBtn = document.querySelector('.nav button[data-view="inventory"]');
+    invBtn.classList.toggle("attn", lowCount > 0);
+    if (lowCount > 0) document.getElementById("nav-count-inventory").textContent = lowCount + " low";
+  }
+
+  function renderPageChrome(){
+    const meta = viewMeta[currentView];
+    document.getElementById("page-title").textContent = meta.title;
+    document.getElementById("page-sub").textContent = meta.sub;
+    const actions = document.getElementById("page-actions");
+    actions.innerHTML = "";
+    if (currentView === "inventory"){
+      actions.innerHTML = `<button class="btn" id="act-bulk-spd">Bulk tag values</button><button class="btn" id="act-build-kit">Build kit</button><button class="btn" id="act-import-inventory">Import inventory</button><button class="btn btn-primary" id="act-new-item">+ New item</button>`;
+    } else if (currentView === "pos"){
+      actions.innerHTML = `<button class="btn btn-primary" id="act-new-po">+ New purchase order</button>`;
+    } else if (currentView === "vendors"){
+      actions.innerHTML = `<button class="btn btn-primary" id="act-new-vendor">+ New vendor</button>`;
+    }
+    const b1 = document.getElementById("act-new-item"); if (b1) b1.onclick = () => openItemDialog();
+    const b2 = document.getElementById("act-new-po"); if (b2) b2.onclick = () => openPoDialog();
+    const b3 = document.getElementById("act-new-vendor"); if (b3) b3.onclick = () => openVendorDialog();
+    const b4 = document.getElementById("act-import-inventory"); if (b4) b4.onclick = () => openImportDialog();
+    const b5 = document.getElementById("act-build-kit"); if (b5) b5.onclick = () => openKitDialog();
+    const b6 = document.getElementById("act-bulk-spd"); if (b6) b6.onclick = () => openBulkSpdDialog();
+    syncTopbarHeightVar();
+  }
+  // Keeps the Inventory toolbar pinned right below the topbar, and the table's own scroll
+  // region correctly sized to the remaining space — measured live since both heights change
+  // between the desktop and mobile layouts.
+  function syncTopbarHeightVar(){
+    const topbar = document.querySelector(".topbar");
+    if (topbar) document.documentElement.style.setProperty("--topbar-h", `${topbar.getBoundingClientRect().height}px`);
+    const toolbar = document.getElementById("inv-toolbar");
+    if (toolbar) document.documentElement.style.setProperty("--inv-toolbar-h", `${toolbar.getBoundingClientRect().height}px`);
+  }
+  window.addEventListener("resize", syncTopbarHeightVar);
+
+  function renderView(){
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    document.getElementById("view-" + currentView).classList.add("active");
+    if (currentView === "dashboard") renderDashboard();
+    else if (currentView === "inventory") renderInventory();
+    else if (currentView === "pos") renderPOs();
+    else if (currentView === "vendors") renderVendors();
+  }
+
+  /* ============ dashboard ============ */
+  function renderDashboard(){
+    const root = document.getElementById("view-dashboard");
+    if (state.items.length === 0 && state.vendors.length === 0){
+      root.innerHTML = `<div class="empty-hero">
+        <div class="glyph">📦</div>
+        <h2>Nothing tracked yet</h2>
+        <p>Start by adding the vendors you order from, then the items you keep in stock. Purchase orders tie the two together.</p>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" id="eh-vendor">+ Add a vendor</button>
+          <button class="btn" id="eh-item">+ Add an item</button>
+        </div>
+      </div>`;
+      document.getElementById("eh-vendor").onclick = () => openVendorDialog();
+      document.getElementById("eh-item").onclick = () => openItemDialog();
+      return;
+    }
+
+    const lowItems = state.items.filter(i => stockStatus(i).key !== "ok")
+      .sort((a,b) => (Number(a.qty)-Number(a.reorderPoint)) - (Number(b.qty)-Number(b.reorderPoint)));
+    const openPos = state.pos.filter(p => p.status==="sent" || p.status==="partial")
+      .sort((a,b) => (a.expected||"9999").localeCompare(b.expected||"9999"));
+    const RUNWAY_THRESHOLD_DAYS = 30;
+    const lowRunwayItems = state.items
+      .map(i => ({ item:i, days: daysOfStock(i) }))
+      .filter(x => x.days !== null && x.days < RUNWAY_THRESHOLD_DAYS)
+      .sort((a,b) => a.days - b.days);
+    // Flags a physical-vs-sellable gap of more than 100 units — usually means stock is stuck
+    // somewhere (damaged, on hold, miscounted) rather than truly available to sell. Only looks
+    // at items where both figures are actually populated (e.g. from a Deposco import).
+    const MISMATCH_THRESHOLD = 100;
+    const mismatchItems = state.items
+      .filter(i => Number.isFinite(i.totalPhysicalQty) && Number.isFinite(i.totalSellableQty) && Math.abs(i.totalPhysicalQty - i.totalSellableQty) > MISMATCH_THRESHOLD)
+      .sort((a,b) => Math.abs(b.totalPhysicalQty - b.totalSellableQty) - Math.abs(a.totalPhysicalQty - a.totalSellableQty));
+    // Items with a work order currently open in Deposco (synced in, not entered here) —
+    // regardless of category or days of stock, so this tile reflects what's really in flight.
+    const openWorkOrderItems = state.items.filter(i => i.openWorkOrder);
+
+    root.innerHTML = `
+      <div class="panel">
+        <div class="panel-body" style="padding:16px 18px;">
+          <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:8px;">Ask about a SKU</div>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="ask-input" autocomplete="off" placeholder='e.g. "how many days left of BG-CAF-ONLINE-30?"' style="flex:1;padding:9px 12px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);">
+            <button class="btn btn-primary" id="ask-submit">Ask</button>
+          </div>
+          <div id="ask-answer" class="cell-sub" style="margin-top:10px;font-size:13.5px;color:var(--ink);display:none;"></div>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-tile" data-tile="inv-all" tabindex="0" role="button"><div class="label">SKUs tracked</div><div class="value mono">${state.items.length}</div></div>
+        <div class="stat-tile ${lowItems.length?'attn':''}" data-tile="inv-reorder" tabindex="0" role="button"><div class="label">Need reordering</div><div class="value mono">${lowItems.length}</div></div>
+        <div class="stat-tile ${lowRunwayItems.length?'attn':''}" data-tile="inv-runway30" tabindex="0" role="button"><div class="label">Under ${RUNWAY_THRESHOLD_DAYS} days stock</div><div class="value mono">${lowRunwayItems.length}</div></div>
+        <div class="stat-tile" data-tile="pos-open" tabindex="0" role="button"><div class="label">Open purchase orders</div><div class="value mono">${openPos.length}</div></div>
+        <div class="stat-tile ${mismatchItems.length?'attn':''}" data-tile="inv-mismatch" tabindex="0" role="button"><div class="label">Physical/sellable mismatch</div><div class="value mono">${mismatchItems.length}</div></div>
+        <div class="stat-tile" data-tile="open-wo" tabindex="0" role="button"><div class="label">Open work orders</div><div class="value mono">${openWorkOrderItems.length}</div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Needs reordering</h2>${lowItems.length ? `<span class="cell-sub">${lowItems.length} item${lowItems.length===1?'':'s'}</span>` : ''}</div>
+        <div class="panel-body">
+          ${lowItems.length === 0 ? `<div class="panel-empty">Everything is above its reorder point.</div>` : `
+          <div class="table-wrap"><table>
+            <thead><tr><th>Item</th><th>Vendor</th><th class="num">On hand</th><th class="num">Reorder at</th><th>Status</th><th class="num">Days left</th><th></th></tr></thead>
+            <tbody>
+              ${lowItems.slice(0,8).map(i => {
+                const v = vendorById(i.vendorId);
+                const st = stockStatus(i);
+                const days = daysOfStock(i);
+                return `<tr>
+                  <td data-act="goto-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}</div></td>
+                  <td>${v ? esc(v.name) : '<span class="cell-sub">—</span>'}</td>
+                  <td class="num">${Number(i.qty)||0}</td>
+                  <td class="num">${Number(i.reorderPoint)||0}</td>
+                  <td><span class="pill pill-${st.key}">${st.label}</span></td>
+                  <td class="num">${days !== null ? Math.floor(days) + "d" : '<span class="cell-sub">—</span>'}</td>
+                  <td class="actions">${quickActionButton(i)}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table></div>`}
+        </div>
+      </div>
+
+      <div class="panel" id="panel-running-low">
+        <div class="panel-head"><h2>Running low (under ${RUNWAY_THRESHOLD_DAYS} days)</h2>${lowRunwayItems.length ? `<span class="cell-sub">${lowRunwayItems.length} item${lowRunwayItems.length===1?'':'s'}</span>` : ''}</div>
+        <div class="panel-body">
+          ${lowRunwayItems.length === 0 ? `<div class="panel-empty">Nothing projected to run out within ${RUNWAY_THRESHOLD_DAYS} days.</div>` : `
+          ${lowRunwayItems.some(x => String(x.item.category||"").trim() === "10 Packs") ? `<div class="hint" style="padding:0 18px 4px;">"10 Packs" rows get a suggested build qty and a Request Work Order link — that opens Launch Fulfillment's form pre-filled; you still review and submit it yourself.</div>` : ""}
+          <div class="table-wrap"><table>
+            <thead><tr><th>Item</th><th>Vendor</th><th class="num">On hand</th><th class="num">Sale/day</th><th class="num">Days left</th><th class="num">-STK qty</th><th class="num">-STKV3 qty</th><th class="num">Suggested qty</th><th></th></tr></thead>
+            <tbody>
+              ${lowRunwayItems.map(({item:i, days}) => {
+                const v = vendorById(i.vendorId);
+                const critical = days < 14;
+                const is10Pack = String(i.category||"").trim() === "10 Packs";
+                const needsWorkOrder = is10Pack && !i.openWorkOrder;
+                const qty = needsWorkOrder ? suggestedWorkOrderQty(i) : null;
+                return `<tr>
+                  <td data-act="goto-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}</div>${openWorkOrderPill(i)}</td>
+                  <td>${v ? esc(v.name) : '<span class="cell-sub">—</span>'}</td>
+                  <td class="num">${Number(i.qty)||0}</td>
+                  <td class="num">${Number(i.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2})}</td>
+                  <td class="num"><span class="pill pill-${critical?'critical':'warn'}">${Math.floor(days)}d</span></td>
+                  <td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stk")) : '<span class="cell-sub">—</span>'}</td>
+                  <td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stkv3")) : '<span class="cell-sub">—</span>'}</td>
+                  <td class="num">${qty !== null ? qty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
+                  <td class="actions">${needsWorkOrder ? `<a class="btn btn-sm btn-primary" href="${esc(buildWorkOrderFormUrl(i, qty))}" target="_blank" rel="noopener">Request Work Order</a>` : (is10Pack ? '' : quickActionButton(i))}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table></div>`}
+        </div>
+      </div>
+
+      <div class="panel" id="panel-mismatch">
+        <div class="panel-head"><h2>Physical/sellable mismatch (over ${MISMATCH_THRESHOLD})</h2>${mismatchItems.length ? `<span class="cell-sub">${mismatchItems.length} item${mismatchItems.length===1?'':'s'}</span>` : ''}</div>
+        <div class="panel-body">
+          ${mismatchItems.length === 0 ? `<div class="panel-empty">No SKUs with both physical and sellable qty set have a gap over ${MISMATCH_THRESHOLD}.</div>` : `
+          <div class="table-wrap" style="max-height:360px;overflow-y:auto;"><table>
+            <thead><tr><th>Item</th><th class="num">Total physical qty</th><th class="num">Total sellable qty</th><th class="num">Difference</th></tr></thead>
+            <tbody>
+              ${mismatchItems.map(i => {
+                const diff = i.totalPhysicalQty - i.totalSellableQty;
+                return `<tr>
+                  <td data-act="goto-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}</div></td>
+                  <td class="num">${i.totalPhysicalQty.toLocaleString("en-US")}</td>
+                  <td class="num">${i.totalSellableQty.toLocaleString("en-US")}</td>
+                  <td class="num"><span class="pill pill-warn">${diff > 0 ? "+" : ""}${diff.toLocaleString("en-US")}</span></td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table></div>`}
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Open purchase orders</h2>${openPos.length ? `<span class="cell-sub">${openPos.length} open</span>` : ''}</div>
+        <div class="panel-body">
+          ${openPos.length === 0 ? `<div class="panel-empty">No purchase orders in flight.</div>` : `
+          <div class="table-wrap"><table>
+            <thead><tr><th>PO</th><th>Vendor</th><th>Status</th><th>Expected</th><th class="num">Total</th></tr></thead>
+            <tbody>
+              ${openPos.slice(0,8).map(p => {
+                const v = vendorById(p.vendorId);
+                const sm = poStatusMeta(p.status);
+                return `<tr data-act="open-po" data-id="${p.id}" style="cursor:pointer;">
+                  <td class="mono cell-primary">${esc(p.number)}</td>
+                  <td>${v ? esc(v.name) : '<span class="cell-sub">—</span>'}</td>
+                  <td><span class="pill ${sm.cls}">${sm.label}</span></td>
+                  <td>${fmtDate(p.expected)}</td>
+                  <td class="num">${fmtMoney(poTotal(p))}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table></div>`}
+        </div>
+      </div>
+    `;
+    wireRowActions(root);
+    root.querySelectorAll("[data-tile]").forEach(tile => {
+      const go = () => {
+        const kind = tile.dataset.tile;
+        if (kind === "inv-all") goToInventory("");
+        else if (kind === "inv-reorder") goToInventory("reorder");
+        else if (kind === "inv-runway30") document.getElementById("panel-running-low")?.scrollIntoView({ behavior:"smooth", block:"start" });
+        else if (kind === "pos-open") goToPOs("open");
+        else if (kind === "inv-mismatch") document.getElementById("panel-mismatch")?.scrollIntoView({ behavior:"smooth", block:"start" });
+        else if (kind === "open-wo") goToInventory("openwo");
+      };
+      tile.addEventListener("click", go);
+      tile.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); go(); } });
+    });
+    const runAsk = () => {
+      const q = document.getElementById("ask-input").value.trim();
+      if (!q) return;
+      const answerEl = document.getElementById("ask-answer");
+      answerEl.style.display = "block";
+      const listHtml = tryListAnswer(q);
+      if (listHtml !== null) answerEl.innerHTML = listHtml;
+      else answerEl.textContent = answerQuestion(q);
+    };
+    document.getElementById("ask-submit").onclick = runAsk;
+    document.getElementById("ask-input").addEventListener("keydown", e => { if (e.key === "Enter"){ hideAskSuggest(); runAsk(); } else if (e.key === "Escape") hideAskSuggest(); });
+
+    // Autocomplete: as you type a SKU/name, show matching items — click one to jump straight to
+    // it in Inventory, filtered to its category. Lives in a body-level box (not nested inside
+    // this panel, which clips overflow for its rounded corners) and is positioned to track the
+    // input, so the list is never cut off by the panel or anything else on the page.
+    function hideAskSuggest(){
+      const box = document.getElementById("ask-suggest");
+      box.hidden = true; box.innerHTML = "";
+      window.removeEventListener("scroll", positionAskSuggest, true);
+      window.removeEventListener("resize", positionAskSuggest);
+    }
+    function positionAskSuggest(){
+      const input = document.getElementById("ask-input");
+      const box = document.getElementById("ask-suggest");
+      const r = input.getBoundingClientRect();
+      box.style.top = `${r.bottom + 4}px`;
+      box.style.left = `${r.left}px`;
+      box.style.width = `${r.width}px`;
+    }
+    function renderAskSuggest(){
+      const input = document.getElementById("ask-input");
+      const box = document.getElementById("ask-suggest");
+      const q = input.value.trim().toLowerCase();
+      if (!q){ hideAskSuggest(); return; }
+      const scored = state.items
+        .map(i => {
+          const sku = i.sku.toLowerCase(), name = i.name.toLowerCase();
+          let rank = -1;
+          if (sku.startsWith(q) || name.startsWith(q)) rank = 0;
+          else if (sku.includes(q) || name.includes(q)) rank = 1;
+          return { item:i, rank };
+        })
+        .filter(x => x.rank >= 0)
+        .sort((a,b) => a.rank - b.rank || a.item.sku.localeCompare(b.item.sku))
+        .slice(0, 8);
+      if (scored.length === 0){ hideAskSuggest(); return; }
+      box.innerHTML = scored.map(({item:i}) => `
+        <div class="ask-suggest-row" data-id="${i.id}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13.5px;">
+          <div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}</div>
+        </div>`).join("");
+      box.hidden = false;
+      positionAskSuggest();
+      window.addEventListener("scroll", positionAskSuggest, true);
+      window.addEventListener("resize", positionAskSuggest);
+      box.querySelectorAll(".ask-suggest-row").forEach(row => {
+        row.addEventListener("mouseenter", () => { row.style.background = "var(--surface-2)"; });
+        row.addEventListener("mouseleave", () => { row.style.background = ""; });
+        // mousedown (not click) fires before the input's blur, so the dropdown doesn't
+        // vanish out from under the click.
+        row.addEventListener("mousedown", e => {
+          e.preventDefault();
+          const item = itemById(row.dataset.id);
+          if (!item) return;
+          hideAskSuggest();
+          goToInventoryForItem(item);
+        });
+      });
+    }
+    document.getElementById("ask-input").addEventListener("input", renderAskSuggest);
+    document.getElementById("ask-input").addEventListener("blur", () => setTimeout(hideAskSuggest, 150));
+  }
+
+  /* ============ inventory ============ */
+  let invFilter = { q:"", category:"", vendor:"", status:"" };
+  function renderInventory(){
+    const root = document.getElementById("view-inventory");
+    const cats = categories();
+    const statusOptions = [
+      { value:"", label:"All statuses" },
+      { value:"reorder", label:"Needs reordering" },
+      { value:"out", label:"Out of stock" },
+      { value:"runway30", label:"Under 30 days stock" },
+      { value:"openwo", label:"Has open work order" }
+    ];
+    root.innerHTML = `
+      <div class="toolbar" id="inv-toolbar">
+        <div class="search"><input type="search" id="inv-search" placeholder="Search SKU or name" value="${esc(invFilter.q)}"></div>
+        <select id="inv-cat"><option value="">All categories</option>${cats.map(c=>`<option value="${esc(c)}" ${invFilter.category===c?'selected':''}>${esc(c)}</option>`).join("")}</select>
+        <select id="inv-vendor"><option value="">All vendors</option>${state.vendors.map(v=>`<option value="${v.id}" ${invFilter.vendor===v.id?'selected':''}>${esc(v.name)}</option>`).join("")}</select>
+        <select id="inv-status">${statusOptions.map(o=>`<option value="${o.value}" ${invFilter.status===o.value?'selected':''}>${esc(o.label)}</option>`).join("")}</select>
+      </div>
+      ${state.meta && state.meta.lastImport ? `<div class="cell-sub">Last synced ${fmtDate(state.meta.lastImport.date)} from ${state.meta.lastImport.sheetName ? `"${esc(state.meta.lastImport.sheetName)}" in ` : ""}${esc(state.meta.lastImport.fileName)} — ${state.meta.lastImport.matched} updated${state.meta.lastImport.added ? ", " + state.meta.lastImport.added + " added" : ""}${state.meta.lastImport.categorized ? ", " + state.meta.lastImport.categorized + " categorized" : ""}</div>` : ""}
+      <div class="panel" id="inv-panel"></div>
+    `;
+    document.getElementById("inv-search").oninput = e => { invFilter.q = e.target.value; renderInventoryTable(); };
+    document.getElementById("inv-cat").onchange = e => { invFilter.category = e.target.value; renderInventoryTable(); };
+    document.getElementById("inv-vendor").onchange = e => { invFilter.vendor = e.target.value; renderInventoryTable(); };
+    document.getElementById("inv-status").onchange = e => { invFilter.status = e.target.value; renderInventoryTable(); };
+    renderInventoryTable();
+    syncTopbarHeightVar();
+  }
+  function renderInventoryTable(){
+    const panel = document.getElementById("inv-panel");
+    if (!panel) return;
+    if (state.items.length === 0){
+      panel.innerHTML = `<div class="panel-empty">No items yet.<div style="display:flex;gap:8px;justify-content:center;margin-top:12px;"><button class="btn btn-primary" id="inv-empty-add">+ New item</button><button class="btn" id="inv-empty-import">Import from spreadsheet</button></div></div>`;
+      document.getElementById("inv-empty-add").onclick = () => openItemDialog();
+      document.getElementById("inv-empty-import").onclick = () => openImportDialog();
+      return;
+    }
+    const q = invFilter.q.trim().toLowerCase();
+    const rows = state.items.filter(i => {
+      if (invFilter.category && i.category !== invFilter.category) return false;
+      if (invFilter.vendor && i.vendorId !== invFilter.vendor) return false;
+      if (invFilter.status === "reorder" && stockStatus(i).key === "ok") return false;
+      if (invFilter.status === "out" && stockStatus(i).key !== "critical") return false;
+      if (invFilter.status === "openwo" && !i.openWorkOrder) return false;
+      if (invFilter.status === "runway30"){
+        const d = daysOfStock(i);
+        if (d === null || d >= 30) return false;
+      }
+      if (q && !(i.sku.toLowerCase().includes(q) || i.name.toLowerCase().includes(q))) return false;
+      return true;
+    }).sort((a,b) => a.name.localeCompare(b.name));
+
+    if (rows.length === 0){
+      panel.innerHTML = `<div class="panel-empty">No items match those filters.</div>`;
+      return;
+    }
+    // On the "10 Packs" category, and on the "Under 30 days stock" status filter, show each
+    // -10 item's matching loose-stick stock alongside it — same base SKU, but ending "-STK" /
+    // "-STKV3" instead. Under the status filter the list can mix in non-10-pack items too, so
+    // these only actually compute for rows whose SKU really ends in "-10".
+    const showStkCols = invFilter.category === "10 Packs" || invFilter.status === "runway30";
+    // How many more finished 10-pack units to kit to reach 40 days of stock at the current sale
+    // rate — but only once it's actually running low (under 30 days); otherwise there's nothing
+    // to flag and the column stays blank rather than showing a distracting number.
+    const TOPUP_TARGET_DAYS = 40, TOPUP_TRIGGER_DAYS = 30;
+    const topUpQty = (i, days, is10Pack) => {
+      if (!showStkCols || !is10Pack) return null;
+      if (days === null || days >= TOPUP_TRIGGER_DAYS) return null;
+      const spd = Number(i.salesPerDay) || 0;
+      if (spd <= 0) return null;
+      return Math.max(0, Math.ceil(TOPUP_TARGET_DAYS * spd - (Number(i.qty)||0)));
+    };
+    panel.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Item</th><th class="num">On hand</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
+      <tbody>
+        ${rows.map(i => {
+          const v = vendorById(i.vendorId);
+          const st = stockStatus(i);
+          const days = daysOfStock(i);
+          const is10Pack = /-10$/i.test(i.sku);
+          const stkCols = showStkCols
+            ? `<td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stk")) : '<span class="cell-sub">—</span>'}</td><td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stkv3")) : '<span class="cell-sub">—</span>'}</td>`
+            : "";
+          const topUp = topUpQty(i, days, is10Pack);
+          const topUpCol = showStkCols ? `<td class="num">${topUp !== null ? topUp.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>` : "";
+          return `<tr>
+            <td data-act="edit-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}${i.uom?` · ${esc(i.uom)}`:''}</div>${openWorkOrderPill(i)}</td>
+            <td class="num">${Number(i.qty)||0}</td>
+            ${stkCols}
+            ${showStkCols ? "" : `<td class="num">${Number(i.reorderPoint)||0}</td>`}
+            <td><span class="pill pill-${st.key}">${st.label}</span></td>
+            <td class="num">${i.salesPerDay ? Number(i.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2}) : '<span class="cell-sub">—</span>'}</td>
+            <td class="num">${days !== null ? Math.floor(days) + "d" : '<span class="cell-sub">—</span>'}</td>
+            ${topUpCol}
+            <td>${v ? esc(v.name) : '<span class="cell-sub">—</span>'}</td>
+            <td class="num">${fmtMoney(i.cost)}</td>
+            <td class="actions">
+              ${quickActionButton(i)}
+              <button class="btn btn-sm" data-act="edit-item" data-id="${i.id}">Edit</button>
+            </td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table></div>`;
+    wireRowActions(panel);
+  }
+
+  /* ============ purchase orders ============ */
+  let poFilter = { q:"", status:"" };
+  function renderPOs(){
+    const root = document.getElementById("view-pos");
+    root.innerHTML = `
+      <div class="toolbar">
+        <div class="search"><input type="search" id="po-search" placeholder="Search PO # or vendor" value="${esc(poFilter.q)}"></div>
+        <select id="po-status-filter">
+          <option value="">All statuses</option>
+          <option value="open" ${poFilter.status==='open'?'selected':''}>Open (sent + partial)</option>
+          <option value="draft" ${poFilter.status==='draft'?'selected':''}>Draft</option>
+          <option value="sent" ${poFilter.status==='sent'?'selected':''}>Sent</option>
+          <option value="partial" ${poFilter.status==='partial'?'selected':''}>Partially received</option>
+          <option value="received" ${poFilter.status==='received'?'selected':''}>Received</option>
+          <option value="cancelled" ${poFilter.status==='cancelled'?'selected':''}>Cancelled</option>
+        </select>
+      </div>
+      <div class="panel" id="po-panel"></div>
+    `;
+    document.getElementById("po-search").oninput = e => { poFilter.q = e.target.value; renderPoTable(); };
+    document.getElementById("po-status-filter").onchange = e => { poFilter.status = e.target.value; renderPoTable(); };
+    renderPoTable();
+  }
+  function renderPoTable(){
+    const panel = document.getElementById("po-panel");
+    if (!panel) return;
+    if (state.pos.length === 0){
+      panel.innerHTML = `<div class="panel-empty">No purchase orders yet.<div><button class="btn btn-primary" id="po-empty-add">+ New purchase order</button></div></div>`;
+      document.getElementById("po-empty-add").onclick = () => openPoDialog();
+      return;
+    }
+    const q = poFilter.q.trim().toLowerCase();
+    const rows = state.pos.filter(p => {
+      if (poFilter.status === "open"){ if (!(p.status==="sent"||p.status==="partial")) return false; }
+      else if (poFilter.status && p.status !== poFilter.status) return false;
+      if (q){
+        const v = vendorById(p.vendorId);
+        if (!(p.number.toLowerCase().includes(q) || (v && v.name.toLowerCase().includes(q)))) return false;
+      }
+      return true;
+    }).sort((a,b) => b.created.localeCompare(a.created));
+
+    if (rows.length === 0){
+      panel.innerHTML = `<div class="panel-empty">No purchase orders match those filters.</div>`;
+      return;
+    }
+    panel.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>PO</th><th>Vendor</th><th>Status</th><th>Created</th><th>Expected</th><th class="num">Lines</th><th class="num">Total</th></tr></thead>
+      <tbody>
+        ${rows.map(p => {
+          const v = vendorById(p.vendorId);
+          const sm = poStatusMeta(p.status);
+          return `<tr data-act="open-po" data-id="${p.id}" style="cursor:pointer;">
+            <td class="mono cell-primary">${esc(p.number)}</td>
+            <td>${v ? esc(v.name) : '<span class="cell-sub">—</span>'}</td>
+            <td><span class="pill ${sm.cls}">${sm.label}</span></td>
+            <td>${fmtDate(p.created)}</td>
+            <td>${fmtDate(p.expected)}</td>
+            <td class="num">${p.lines.length}</td>
+            <td class="num">${fmtMoney(poTotal(p))}</td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table></div>`;
+    wireRowActions(panel);
+  }
+
+  /* ============ vendors ============ */
+  let vendorFilter = { q:"" };
+  function renderVendors(){
+    const root = document.getElementById("view-vendors");
+    root.innerHTML = `
+      <div class="toolbar">
+        <div class="search"><input type="search" id="vendor-search" placeholder="Search vendors" value="${esc(vendorFilter.q)}"></div>
+      </div>
+      <div class="panel" id="vendor-panel"></div>
+    `;
+    document.getElementById("vendor-search").oninput = e => { vendorFilter.q = e.target.value; renderVendorTable(); };
+    renderVendorTable();
+  }
+  function renderVendorTable(){
+    const panel = document.getElementById("vendor-panel");
+    if (!panel) return;
+    if (state.vendors.length === 0){
+      panel.innerHTML = `<div class="panel-empty">No vendors yet.<div><button class="btn btn-primary" id="vendor-empty-add">+ New vendor</button></div></div>`;
+      document.getElementById("vendor-empty-add").onclick = () => openVendorDialog();
+      return;
+    }
+    const q = vendorFilter.q.trim().toLowerCase();
+    const rows = state.vendors.filter(v => !q || v.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
+    if (rows.length === 0){
+      panel.innerHTML = `<div class="panel-empty">No vendors match that search.</div>`;
+      return;
+    }
+    panel.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Vendor</th><th>Contact</th><th class="num">Lead time</th><th class="num">Items</th><th class="num">Open POs</th><th></th></tr></thead>
+      <tbody>
+        ${rows.map(v => {
+          const itemCount = state.items.filter(i => i.vendorId === v.id).length;
+          const openCount = state.pos.filter(p => p.vendorId === v.id && (p.status==='sent'||p.status==='partial')).length;
+          return `<tr>
+            <td data-act="edit-vendor" data-id="${v.id}" style="cursor:pointer;"><div class="cell-primary">${esc(v.name)}</div>${v.email?`<div class="cell-sub">${esc(v.email)}</div>`:''}</td>
+            <td>${v.contact ? esc(v.contact) : '<span class="cell-sub">—</span>'}${v.phone?`<div class="cell-sub">${esc(v.phone)}</div>`:''}</td>
+            <td class="num">${v.leadTime ? v.leadTime + "d" : '—'}</td>
+            <td class="num">${itemCount}</td>
+            <td class="num">${openCount}</td>
+            <td class="actions"><button class="btn btn-sm" data-act="edit-vendor" data-id="${v.id}">Edit</button></td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table></div>`;
+    wireRowActions(panel);
+  }
+
+  /* ============ row action delegation ============ */
+  function wireRowActions(root){
+    root.querySelectorAll('[data-act="edit-item"]').forEach(el => el.onclick = () => openItemDialog(el.dataset.id));
+    root.querySelectorAll('[data-act="goto-item"]').forEach(el => el.onclick = () => {
+      const item = itemById(el.dataset.id);
+      if (item) goToInventoryForItem(item);
+    });
+    root.querySelectorAll('[data-act="edit-vendor"]').forEach(el => el.onclick = () => openVendorDialog(el.dataset.id));
+    root.querySelectorAll('[data-act="open-po"]').forEach(el => el.onclick = () => openPoDialog(el.dataset.id));
+    root.querySelectorAll('[data-act="quick-po"]').forEach(el => el.onclick = () => quickCreatePo(el.dataset.id));
+    root.querySelectorAll('[data-act="quick-kit"]').forEach(el => el.onclick = () => quickCreateKit(el.dataset.id));
+  }
+  // "-10" items are replenished by kitting, not by ordering — swap the action in for those.
+  function quickActionButton(item){
+    const component = findKitComponent(item);
+    return component
+      ? `<button class="btn btn-sm" data-act="quick-kit" data-id="${item.id}" title="Kit from ${esc(component.sku)}">+ Kit</button>`
+      : `<button class="btn btn-sm" data-act="quick-po" data-id="${item.id}">+ PO</button>`;
+  }
+
+  /* ============ nav wiring ============ */
+  function switchView(view){
+    currentView = view;
+    document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("active", b.dataset.view === view));
+    renderPageChrome();
+    renderView();
+  }
+  document.getElementById("nav").addEventListener("click", e => {
+    const btn = e.target.closest("button[data-view]");
+    if (!btn) return;
+    switchView(btn.dataset.view);
+  });
+  // Drill-down from a dashboard stat tile into a pre-filtered Inventory / Purchase Orders view.
+  function goToInventory(status){
+    invFilter = { q:"", category:"", vendor:"", status: status || "" };
+    switchView("inventory");
+  }
+  // Jump from a dashboard row straight to that item, filtered to its own category, in Inventory.
+  function goToInventoryForItem(item){
+    invFilter = { q: item.sku, category: item.category || "", vendor:"", status:"" };
+    switchView("inventory");
+  }
+  function goToPOs(status){
+    poFilter = { q:"", status: status || "" };
+    switchView("pos");
+  }
+
+  document.getElementById("banner-dismiss").onclick = hideBanner;
+
+  // delegated so dialogs whose buttons are (re)built dynamically still close correctly
+  document.body.addEventListener("click", e => {
+    const btn = e.target.closest("[data-close]");
+    if (!btn) return;
+    const dlg = btn.closest("dialog");
+    if (dlg) dlg.close();
+  });
+
+  /* ============ item dialog ============ */
+  let editingItemId = null;
+  function fillVendorSelect(select, selectedId){
+    select.innerHTML = `<option value="">No vendor set</option>` + state.vendors.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
+    select.value = selectedId || "";
+  }
+
+  /* ---- bill of materials lines (what building one unit of the item being edited consumes) ---- */
+  let draftBom = [];
+  function renderBomItemsDatalist(){
+    document.getElementById("dl-bom-items").innerHTML = state.items
+      .filter(i => i.id !== editingItemId)
+      .map(i => `<option value="${esc(i.sku)}">${esc(i.name)}</option>`)
+      .join("");
+  }
+  function renderBomLines(){
+    renderBomItemsDatalist();
+    const body = document.getElementById("bom-lines-body");
+    body.innerHTML = draftBom.map((line, idx) => {
+      const comp = itemById(line.componentId);
+      return `<tr data-idx="${idx}">
+        <td><input type="text" class="bom-line-sku" list="dl-bom-items" autocomplete="off" placeholder="Type a SKU or name…" value="${comp ? esc(comp.sku) : ''}"></td>
+        <td><input type="number" class="bom-line-qty" min="0" step="any" value="${line.qty}"></td>
+        <td class="cell-sub num">${comp ? (Number(comp.qty)||0).toLocaleString("en-US") : "—"}</td>
+        <td><button type="button" class="rm-line" title="Remove component">✕</button></td>
+      </tr>`;
+    }).join("");
+    body.querySelectorAll("tr").forEach(tr => {
+      const idx = Number(tr.dataset.idx);
+      const skuInput = tr.querySelector(".bom-line-sku");
+      const resolveSku = () => {
+        const typed = skuInput.value.trim().toLowerCase();
+        const match = state.items.find(i => i.id !== editingItemId && i.sku.toLowerCase() === typed);
+        draftBom[idx].componentId = match ? match.id : null;
+        renderBomLines();
+      };
+      skuInput.addEventListener("change", resolveSku);
+      tr.querySelector(".bom-line-qty").addEventListener("input", e => { draftBom[idx].qty = Number(e.target.value) || 0; });
+      tr.querySelector(".rm-line").addEventListener("click", () => { draftBom.splice(idx,1); renderBomLines(); });
+    });
+  }
+  document.getElementById("bom-add-line").addEventListener("click", () => {
+    draftBom.push({ componentId:null, qty:1 });
+    renderBomLines();
+  });
+  function openItemDialog(id){
+    editingItemId = id || null;
+    const dlg = document.getElementById("dlg-item");
+    const form = document.getElementById("form-item");
+    form.reset();
+    document.getElementById("f-sku").classList.remove("err");
+    document.getElementById("f-name").classList.remove("err");
+    fillVendorSelect(document.getElementById("in-vendor"), null);
+    document.getElementById("dl-categories").innerHTML = categories().map(c => `<option value="${esc(c)}">`).join("");
+
+    if (editingItemId){
+      const it = itemById(editingItemId);
+      document.getElementById("item-dlg-title").textContent = "Edit item";
+      document.getElementById("item-submit").textContent = "Save changes";
+      document.getElementById("item-delete").hidden = false;
+      form.sku.value = it.sku; form.name.value = it.name; form.category.value = it.category || "";
+      form.uom.value = it.uom || ""; form.qty.value = it.qty; form.cost.value = it.cost;
+      form.totalPhysicalQty.value = Number.isFinite(it.totalPhysicalQty) ? it.totalPhysicalQty : "";
+      form.totalSellableQty.value = Number.isFinite(it.totalSellableQty) ? it.totalSellableQty : "";
+      form.reorderPoint.value = it.reorderPoint; form.reorderQty.value = it.reorderQty;
+      form.salesPerDay.value = it.salesPerDay || 0;
+      form.targetStockQty.value = Number.isFinite(it.targetStockQty) ? it.targetStockQty : "";
+      form.leadTimeDays.value = it.leadTimeDays || 0;
+      form.location.value = it.location || ""; form.notes.value = it.notes || "";
+      fillVendorSelect(document.getElementById("in-vendor"), it.vendorId);
+      draftBom = Array.isArray(it.bom) ? it.bom.map(l => ({ componentId: l.componentId, qty: Number(l.qty)||0 })) : [];
+      const woBtn = document.getElementById("item-request-wo");
+      woBtn.hidden = false;
+      woBtn.href = buildWorkOrderFormUrl(it, suggestedWorkOrderQty(it));
+    } else {
+      document.getElementById("item-dlg-title").textContent = "New item";
+      document.getElementById("item-submit").textContent = "Add item";
+      document.getElementById("item-delete").hidden = true;
+      document.getElementById("item-request-wo").hidden = true;
+      form.qty.value = 0; form.cost.value = 0; form.reorderPoint.value = 0; form.reorderQty.value = 0; form.salesPerDay.value = 0; form.leadTimeDays.value = 0;
+      draftBom = [];
+    }
+    renderBomLines();
+    dlg.showModal();
+  }
+  document.getElementById("form-item").addEventListener("submit", e => {
+    e.preventDefault();
+    const form = e.target;
+    const sku = form.sku.value.trim(), name = form.name.value.trim();
+    let ok = true;
+    document.getElementById("f-name").classList.toggle("err", !name); if (!name) ok = false;
+    const dup = state.items.find(i => i.sku.toLowerCase() === sku.toLowerCase() && i.id !== editingItemId);
+    document.getElementById("f-sku").classList.toggle("err", !sku || !!dup);
+    if (!sku || dup) ok = false;
+    if (!ok) return;
+
+    const payload = {
+      sku, name,
+      category: form.category.value.trim(),
+      uom: form.uom.value.trim(),
+      qty: Number(form.qty.value) || 0,
+      totalPhysicalQty: form.totalPhysicalQty.value.trim() === "" ? null : Number(form.totalPhysicalQty.value),
+      totalSellableQty: form.totalSellableQty.value.trim() === "" ? null : Number(form.totalSellableQty.value),
+      cost: Number(form.cost.value) || 0,
+      reorderPoint: Number(form.reorderPoint.value) || 0,
+      reorderQty: Number(form.reorderQty.value) || 0,
+      salesPerDay: Number(form.salesPerDay.value) || 0,
+      targetStockQty: form.targetStockQty.value.trim() === "" ? null : Number(form.targetStockQty.value),
+      leadTimeDays: Number(form.leadTimeDays.value) || 0,
+      vendorId: form.vendorId.value || null,
+      location: form.location.value.trim(),
+      notes: form.notes.value.trim(),
+      bom: draftBom.filter(l => l.componentId && Number(l.qty) > 0).map(l => ({ componentId: l.componentId, qty: Number(l.qty) }))
+    };
+    if (editingItemId){
+      Object.assign(itemById(editingItemId), payload);
+    } else {
+      state.items.push(Object.assign({ id: uid("item") }, payload));
+    }
+    document.getElementById("dlg-item").close();
+    commit();
+  });
+  document.getElementById("item-delete").addEventListener("click", async () => {
+    const refs = state.pos.filter(p => p.lines.some(l => l.itemId === editingItemId)).length;
+    if (refs > 0){
+      showToast(`Can't delete — this item appears on ${refs} purchase order${refs===1?'':'s'}.`, true);
+      return;
+    }
+    const it = itemById(editingItemId);
+    const yes = await confirmDialog("Delete item?", `"${it.name}" will be permanently removed from inventory.`);
+    if (!yes) return;
+    state.items = state.items.filter(i => i.id !== editingItemId);
+    document.getElementById("dlg-item").close();
+    commit();
+  });
+
+  /* ============ vendor dialog ============ */
+  let editingVendorId = null;
+  function openVendorDialog(id){
+    editingVendorId = id || null;
+    const dlg = document.getElementById("dlg-vendor");
+    const form = document.getElementById("form-vendor");
+    form.reset();
+    document.getElementById("f-vname").classList.remove("err");
+    if (editingVendorId){
+      const v = vendorById(editingVendorId);
+      document.getElementById("vendor-dlg-title").textContent = "Edit vendor";
+      document.getElementById("vendor-submit").textContent = "Save changes";
+      document.getElementById("vendor-delete").hidden = false;
+      form.name.value = v.name; form.contact.value = v.contact || ""; form.leadTime.value = v.leadTime || "";
+      form.email.value = v.email || ""; form.phone.value = v.phone || ""; form.notes.value = v.notes || "";
+    } else {
+      document.getElementById("vendor-dlg-title").textContent = "New vendor";
+      document.getElementById("vendor-submit").textContent = "Add vendor";
+      document.getElementById("vendor-delete").hidden = true;
+    }
+    dlg.showModal();
+  }
+  document.getElementById("form-vendor").addEventListener("submit", e => {
+    e.preventDefault();
+    const form = e.target;
+    const name = form.name.value.trim();
+    document.getElementById("f-vname").classList.toggle("err", !name);
+    if (!name) return;
+    const payload = {
+      name, contact: form.contact.value.trim(), leadTime: Number(form.leadTime.value) || 0,
+      email: form.email.value.trim(), phone: form.phone.value.trim(), notes: form.notes.value.trim()
+    };
+    if (editingVendorId){
+      Object.assign(vendorById(editingVendorId), payload);
+    } else {
+      state.vendors.push(Object.assign({ id: uid("vendor") }, payload));
+    }
+    document.getElementById("dlg-vendor").close();
+    commit();
+  });
+  document.getElementById("vendor-delete").addEventListener("click", async () => {
+    const itemRefs = state.items.filter(i => i.vendorId === editingVendorId).length;
+    const poRefs = state.pos.filter(p => p.vendorId === editingVendorId).length;
+    if (itemRefs > 0 || poRefs > 0){
+      showToast(`Can't delete — linked to ${itemRefs} item${itemRefs===1?'':'s'} and ${poRefs} purchase order${poRefs===1?'':'s'}.`, true);
+      return;
+    }
+    const v = vendorById(editingVendorId);
+    const yes = await confirmDialog("Delete vendor?", `"${v.name}" will be permanently removed.`);
+    if (!yes) return;
+    state.vendors = state.vendors.filter(x => x.id !== editingVendorId);
+    document.getElementById("dlg-vendor").close();
+    commit();
+  });
+
+  /* ============ purchase order dialog ============ */
+  let editingPoId = null;
+  let draftLines = [];
+
+  function renderPoLines(){
+    const body = document.getElementById("po-lines-body");
+    body.innerHTML = draftLines.map((line, idx) => {
+      const total = (Number(line.qtyOrdered)||0) * (Number(line.cost)||0);
+      const it = itemById(line.itemId);
+      const days = it ? daysOfStock(it) : null;
+      return `<tr data-idx="${idx}">
+        <td><select class="line-item">${`<option value="">Choose an item…</option>` + state.items.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(i => `<option value="${i.id}" ${i.id===line.itemId?'selected':''}>${esc(i.name)} (${esc(i.sku)})</option>`).join("")}</select></td>
+        <td class="num cell-sub">${days !== null ? Math.floor(days) + "d" : "—"}</td>
+        <td><input type="number" class="line-qty" min="0" step="1" value="${line.qtyOrdered}"></td>
+        <td><input type="number" class="line-cost" min="0" step="0.01" value="${line.cost}"></td>
+        <td class="line-total">${fmtMoney(total)}</td>
+        <td><button type="button" class="rm-line" title="Remove line">✕</button></td>
+      </tr>`;
+    }).join("");
+    document.getElementById("po-lines-total").textContent = fmtMoney(draftLines.reduce((s,l)=>s+(Number(l.qtyOrdered)||0)*(Number(l.cost)||0),0));
+
+    body.querySelectorAll("tr").forEach(tr => {
+      const idx = Number(tr.dataset.idx);
+      tr.querySelector(".line-item").addEventListener("change", e => {
+        draftLines[idx].itemId = e.target.value || null;
+        const it = itemById(draftLines[idx].itemId);
+        if (it && !draftLines[idx].costTouched) draftLines[idx].cost = Number(it.cost) || 0;
+        renderPoLines();
+      });
+      tr.querySelector(".line-qty").addEventListener("input", e => { draftLines[idx].qtyOrdered = Number(e.target.value) || 0; updateLineTotal(idx); });
+      tr.querySelector(".line-cost").addEventListener("input", e => { draftLines[idx].cost = Number(e.target.value) || 0; draftLines[idx].costTouched = true; updateLineTotal(idx); });
+      tr.querySelector(".rm-line").addEventListener("click", () => { draftLines.splice(idx,1); renderPoLines(); });
+    });
+  }
+  function updateLineTotal(idx){
+    const tr = document.querySelector(`#po-lines-body tr[data-idx="${idx}"]`);
+    const l = draftLines[idx];
+    tr.querySelector(".line-total").textContent = fmtMoney((Number(l.qtyOrdered)||0)*(Number(l.cost)||0));
+    document.getElementById("po-lines-total").textContent = fmtMoney(draftLines.reduce((s,x)=>s+(Number(x.qtyOrdered)||0)*(Number(x.cost)||0),0));
+  }
+  document.getElementById("po-add-line").addEventListener("click", () => {
+    draftLines.push({ itemId:null, qtyOrdered:1, cost:0, qtyReceived:0 });
+    renderPoLines();
+  });
+
+  function renderReceiveSection(po){
+    const fs = document.getElementById("po-receive-fieldset");
+    if (!po || po.status === "cancelled" || po.status === "draft"){
+      fs.hidden = true;
+      return;
+    }
+    fs.hidden = false;
+    const body = document.getElementById("po-receive-body");
+    body.innerHTML = po.lines.map((line, idx) => {
+      const it = itemById(line.itemId);
+      const remaining = Math.max(0, (Number(line.qtyOrdered)||0) - (Number(line.qtyReceived)||0));
+      return `<tr data-idx="${idx}">
+        <td>${it ? esc(it.name) : '<span class="cell-sub">Deleted item</span>'}</td>
+        <td class="mono">${line.qtyOrdered}</td>
+        <td class="mono">${line.qtyReceived || 0}</td>
+        <td><input type="number" class="recv-qty" min="0" max="${remaining}" step="1" value="0" data-remaining="${remaining}"></td>
+      </tr>`;
+    }).join("");
+  }
+
+  function openPoDialog(id, prefill){
+    editingPoId = id || null;
+    const dlg = document.getElementById("dlg-po");
+    const form = document.getElementById("form-po");
+    form.reset();
+    document.getElementById("f-povendor").classList.remove("err");
+    document.getElementById("po-lines-hint").style.display = "none";
+    const vendorSelect = document.getElementById("in-po-vendor");
+    vendorSelect.innerHTML = state.vendors.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
+    document.getElementById("po-kv").style.display = "none";
+    document.getElementById("po-status-actions").innerHTML = "";
+
+    if (editingPoId){
+      const po = poById(editingPoId);
+      draftLines = po.lines.map(l => ({ ...l, costTouched:true }));
+      document.getElementById("po-dlg-title").textContent = po.number;
+      const sm = poStatusMeta(po.status);
+      document.getElementById("po-dlg-sub").innerHTML = `<span class="pill ${sm.cls}">${sm.label}</span>`;
+      document.getElementById("po-submit").textContent = "Save changes";
+      vendorSelect.value = po.vendorId;
+      form.expected.value = po.expected || "";
+      form.notes.value = po.notes || "";
+      document.getElementById("po-kv").style.display = "flex";
+      document.getElementById("po-kv").innerHTML = `
+        <div><div class="k">Created</div><div class="v">${fmtDate(po.created)}</div></div>
+        <div><div class="k">Order total</div><div class="v">${fmtMoney(poTotal(po))}</div></div>
+        ${po.receivedDate ? `<div><div class="k">Received</div><div class="v">${fmtDate(po.receivedDate)}</div></div>` : ""}
+      `;
+      renderReceiveSection(po);
+
+      const statusActions = document.getElementById("po-status-actions");
+      const actionBtns = [];
+      if (po.status === "draft") actionBtns.push(`<button type="button" class="btn" id="po-mark-sent">Mark as sent</button>`);
+      if (po.status !== "cancelled" && po.status !== "received") actionBtns.push(`<button type="button" class="btn btn-danger" id="po-cancel">Cancel PO</button>`);
+      if (po.status === "draft") actionBtns.push(`<button type="button" class="btn btn-danger" id="po-delete">Delete</button>`);
+      statusActions.innerHTML = actionBtns.join("");
+      const msBtn = document.getElementById("po-mark-sent");
+      if (msBtn) msBtn.onclick = () => { po.status = "sent"; document.getElementById("dlg-po").close(); commit(); };
+      const cancelBtn = document.getElementById("po-cancel");
+      if (cancelBtn) cancelBtn.onclick = async () => {
+        const yes = await confirmDialog("Cancel this purchase order?", `${po.number} will be marked cancelled. This can't be undone.`);
+        if (!yes) return;
+        po.status = "cancelled"; document.getElementById("dlg-po").close(); commit();
+      };
+      const delBtn = document.getElementById("po-delete");
+      if (delBtn) delBtn.onclick = async () => {
+        const yes = await confirmDialog("Delete this purchase order?", `${po.number} will be permanently removed.`);
+        if (!yes) return;
+        state.pos = state.pos.filter(p => p.id !== editingPoId);
+        document.getElementById("dlg-po").close(); commit();
+      };
+    } else {
+      document.getElementById("po-dlg-title").textContent = "New purchase order";
+      document.getElementById("po-dlg-sub").innerHTML = "";
+      document.getElementById("po-submit").textContent = "Create purchase order";
+      document.getElementById("po-receive-fieldset").hidden = true;
+      draftLines = [];
+      if (prefill && prefill.itemId){
+        draftLines.push({ itemId: prefill.itemId, qtyOrdered: prefill.qty || 1, cost: prefill.cost || 0, qtyReceived:0, costTouched:true });
+      }
+      if (prefill && prefill.vendorId) vendorSelect.value = prefill.vendorId;
+      form.expected.value = "";
+    }
+    renderPoLines();
+    dlg.showModal();
+  }
+
+  function quickCreatePo(itemId){
+    if (state.vendors.length === 0){ showToast("Add a vendor before creating a purchase order.", true); return; }
+    const it = itemById(itemId);
+    if (!it) return;
+    const suggestedQty = Number(it.reorderQty) || Math.max(1, (Number(it.reorderPoint)||0) - (Number(it.qty)||0)) || 1;
+    openPoDialog(null, { itemId: it.id, qty: suggestedQty, cost: it.cost, vendorId: it.vendorId });
+  }
+
+  document.getElementById("form-po").addEventListener("submit", e => {
+    e.preventDefault();
+    const form = e.target;
+    const vendorId = form.vendorId.value;
+    let ok = true;
+    document.getElementById("f-povendor").classList.toggle("err", !vendorId); if (!vendorId) ok = false;
+    const validLines = draftLines.filter(l => l.itemId && Number(l.qtyOrdered) > 0);
+    document.getElementById("po-lines-hint").style.display = validLines.length === 0 ? "block" : "none";
+    if (validLines.length === 0) ok = false;
+    if (!ok) return;
+
+    if (editingPoId){
+      const po = poById(editingPoId);
+      // tally received-so-far per item from the lines as they were when this dialog opened
+      const receivedByItemId = {};
+      po.lines.forEach(l => { receivedByItemId[l.itemId] = (receivedByItemId[l.itemId]||0) + (Number(l.qtyReceived)||0); });
+
+      // apply any new receiving deltas (matched by item, not position, so edits to the
+      // lines above can't shift a receipt onto the wrong row)
+      const recvBody = document.getElementById("po-receive-body");
+      if (!document.getElementById("po-receive-fieldset").hidden && recvBody){
+        recvBody.querySelectorAll("tr").forEach(tr => {
+          const origLine = po.lines[Number(tr.dataset.idx)];
+          if (!origLine) return;
+          const input = tr.querySelector(".recv-qty");
+          const delta = Math.max(0, Math.min(Number(input.value)||0, Number(input.dataset.remaining)||0));
+          if (delta > 0){
+            receivedByItemId[origLine.itemId] = (receivedByItemId[origLine.itemId]||0) + delta;
+            const it = itemById(origLine.itemId);
+            if (it) it.qty = (Number(it.qty)||0) + delta;
+          }
+        });
+      }
+
+      po.vendorId = vendorId;
+      po.expected = form.expected.value || "";
+      po.notes = form.notes.value.trim();
+      po.lines = validLines.map(l => ({
+        itemId: l.itemId,
+        qtyOrdered: Number(l.qtyOrdered)||0,
+        cost: Number(l.cost)||0,
+        qtyReceived: receivedByItemId[l.itemId] || 0
+      }));
+      recomputePoStatus(po);
+    } else {
+      const po = {
+        id: uid("po"),
+        number: poNumber(state.counters.po - 1),
+        vendorId,
+        status: "draft",
+        created: todayISO(),
+        expected: form.expected.value || "",
+        notes: form.notes.value.trim(),
+        receivedDate: "",
+        lines: validLines.map(l => ({ itemId: l.itemId, qtyOrdered: Number(l.qtyOrdered)||0, cost: Number(l.cost)||0, qtyReceived: 0 }))
+      };
+      state.pos.push(po);
+    }
+    document.getElementById("dlg-po").close();
+    commit();
+  });
+
+  /* ============ bulk tag values — filter rules, or a pasted SKU list ============ */
+  const BULK_FIELD_LABELS = {
+    leadTimeDays: "Lead time (days)", salesPerDay: "Sale/day",
+    reorderPoint: "Reorder point", reorderQty: "Reorder qty", cost: "Unit cost"
+  };
+  function getBulkFieldValue(item, field){ return Number(item[field]) || 0; }
+
+  // Accepts "SKU - value", "SKU: value", "SKU, value", or just "SKU value" per line.
+  function parseSkuValueLines(text){
+    return text.split("\n").map(l => l.trim()).filter(Boolean).map(raw => {
+      const m = raw.match(/^(.+?)\s*[-:,]\s*(-?\d+(?:\.\d+)?)/) || raw.match(/^(\S+)\s+(-?\d+(?:\.\d+)?)/);
+      if (!m) return { raw, sku: null, value: null };
+      return { raw, sku: m[1].trim(), value: Number(m[2]) };
+    });
+  }
+
+  let bulkRules = [];
+  function openBulkSpdDialog(){
+    if (state.items.length === 0){ showToast("Add at least one item first.", true); return; }
+    document.getElementById("bulk-field-select").disabled = false;
+    document.getElementById("bulk-field-select").value = "leadTimeDays";
+    document.querySelector('input[name="bulk-mode"][value="filter"]').checked = true;
+    document.getElementById("bulk-mode-filter").hidden = false;
+    document.getElementById("bulk-mode-list").hidden = true;
+    document.getElementById("bulk-mode-formula").hidden = true;
+    document.getElementById("in-bulk-spd-text").value = "";
+    bulkRules = [
+      { category:"Mailers", skuContains:"-parent", value:40 },
+      { category:"Sticks", skuContains:"-stk", value:60 },
+      { category:"10 Packs", skuContains:"-10", value:10 }
+    ];
+    renderBulkRules();
+    document.getElementById("dlg-bulk-spd").showModal();
+  }
+  function renderBulkRules(){
+    const el = document.getElementById("bulk-rules");
+    const cats = categories();
+    el.innerHTML = bulkRules.map((rule, idx) => `
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap;" data-rule-idx="${idx}">
+        <div class="field" style="flex:1 1 160px;">
+          <label>Category</label>
+          <select class="rule-category">
+            <option value="">Any category</option>
+            ${cats.map(c => `<option value="${esc(c)}" ${rule.category===c?"selected":""}>${esc(c)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field" style="flex:1 1 140px;">
+          <label>SKU contains</label>
+          <input class="rule-sku" value="${esc(rule.skuContains)}" placeholder="e.g. -parent">
+        </div>
+        <div class="field" style="flex:0 0 90px;">
+          <label>Value</label>
+          <input class="rule-value" type="number" step="any" value="${rule.value}">
+        </div>
+        <button type="button" class="btn btn-sm rm-rule" title="Remove rule">✕</button>
+      </div>
+    `).join("");
+    el.querySelectorAll("[data-rule-idx]").forEach(row => {
+      const idx = Number(row.dataset.ruleIdx);
+      row.querySelector(".rule-category").addEventListener("change", e => { bulkRules[idx].category = e.target.value; renderBulkPreview(); });
+      row.querySelector(".rule-sku").addEventListener("input", e => { bulkRules[idx].skuContains = e.target.value; renderBulkPreview(); });
+      row.querySelector(".rule-value").addEventListener("input", e => { bulkRules[idx].value = Number(e.target.value) || 0; renderBulkPreview(); });
+      row.querySelector(".rm-rule").addEventListener("click", () => { bulkRules.splice(idx,1); renderBulkRules(); renderBulkPreview(); });
+    });
+    renderBulkPreview();
+  }
+  document.getElementById("bulk-add-rule").addEventListener("click", () => {
+    bulkRules.push({ category:"", skuContains:"", value:0 });
+    renderBulkRules();
+  });
+  document.querySelectorAll('input[name="bulk-mode"]').forEach(radio => {
+    radio.addEventListener("change", e => {
+      const mode = e.target.value;
+      document.getElementById("bulk-mode-filter").hidden = mode !== "filter";
+      document.getElementById("bulk-mode-list").hidden = mode !== "list";
+      document.getElementById("bulk-mode-formula").hidden = mode !== "formula";
+      const fieldSelect = document.getElementById("bulk-field-select");
+      if (mode === "formula"){ fieldSelect.value = "reorderPoint"; fieldSelect.disabled = true; }
+      else fieldSelect.disabled = false;
+      renderBulkPreview();
+    });
+  });
+  document.getElementById("bulk-field-select").addEventListener("change", renderBulkPreview);
+  document.getElementById("in-bulk-spd-text").addEventListener("input", renderBulkPreview);
+
+  // Resolves which items+values the current mode/rules would apply — shared by preview and submit.
+  function computeBulkMatches(){
+    const mode = document.querySelector('input[name="bulk-mode"]:checked').value;
+    if (mode === "list"){
+      const parsed = parseSkuValueLines(document.getElementById("in-bulk-spd-text").value);
+      const matched = [], unmatched = [];
+      parsed.forEach(p => {
+        if (!p.sku || !Number.isFinite(p.value)){ unmatched.push({ raw:p.raw, reason:"unreadable" }); return; }
+        const item = state.items.find(i => i.sku.toLowerCase() === p.sku.toLowerCase());
+        if (item) matched.push({ item, value:p.value });
+        else unmatched.push({ raw:p.raw, reason:"no match" });
+      });
+      return { matched, unmatched };
+    }
+    if (mode === "formula"){
+      // Reorder point = Lead time (days) × Sale/day, rounded up — only for items that have
+      // both inputs; there's nothing meaningful to compute otherwise. "10 Packs" is excluded
+      // per explicit instruction — those are reordered by kitting, not this formula.
+      const matched = state.items
+        .filter(i => (Number(i.leadTimeDays)||0) > 0 && (Number(i.salesPerDay)||0) > 0 && String(i.category||"").trim() !== "10 Packs")
+        .map(i => ({ item:i, value: Math.ceil((Number(i.leadTimeDays)||0) * (Number(i.salesPerDay)||0)) }));
+      return { matched, unmatched: [] };
+    }
+    // filter mode: first rule (in order) whose category/SKU-contains matches an item wins it
+    const rules = bulkRules
+      .map(r => ({ category:r.category.trim(), skuContains:r.skuContains.trim().toLowerCase(), value:Number(r.value)||0 }))
+      .filter(r => r.category || r.skuContains);
+    const matched = [];
+    if (rules.length){
+      state.items.forEach(item => {
+        for (const rule of rules){
+          const categoryOk = !rule.category || (item.category||"") === rule.category;
+          const skuOk = !rule.skuContains || item.sku.toLowerCase().includes(rule.skuContains);
+          if (categoryOk && skuOk){ matched.push({ item, value: rule.value }); break; }
+        }
+      });
+    }
+    return { matched, unmatched: [] };
+  }
+  function renderBulkPreview(){
+    const field = document.getElementById("bulk-field-select").value;
+    const fieldLabel = BULK_FIELD_LABELS[field] || field;
+    const previewEl = document.getElementById("bulk-spd-preview");
+    const submitBtn = document.getElementById("bulk-spd-submit");
+    const { matched, unmatched } = computeBulkMatches();
+    if (matched.length === 0 && unmatched.length === 0){ previewEl.innerHTML = ""; submitBtn.disabled = true; return; }
+
+    previewEl.innerHTML = `
+      <div class="kv" style="margin-top:2px;">
+        <div><div class="k">Will update</div><div class="v">${matched.length} item${matched.length===1?"":"s"}</div></div>
+        ${unmatched.length ? `<div><div class="k">Couldn't match</div><div class="v" style="color:var(--critical);">${unmatched.length}</div></div>` : ""}
+      </div>
+      <div class="table-wrap" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;margin-top:4px;">
+        <table>
+          <thead><tr><th>SKU</th><th>Item</th><th class="num">Current ${esc(fieldLabel)}</th><th class="num">New</th><th></th></tr></thead>
+          <tbody>
+            ${matched.map(({item,value}) => `<tr><td class="mono">${esc(item.sku)}</td><td>${esc(item.name)}</td><td class="num">${getBulkFieldValue(item,field)}</td><td class="num">${value}</td><td><span class="pill pill-accent">update</span></td></tr>`).join("")}
+            ${unmatched.map(u => `<tr><td class="mono" colspan="4">${esc(u.raw)}</td><td><span class="pill pill-critical">${esc(u.reason)}</span></td></tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+    submitBtn.disabled = matched.length === 0;
+  }
+  document.getElementById("form-bulk-spd").addEventListener("submit", e => {
+    e.preventDefault();
+    const field = document.getElementById("bulk-field-select").value;
+    const { matched } = computeBulkMatches();
+    matched.forEach(({item,value}) => { item[field] = value; });
+    document.getElementById("dlg-bulk-spd").close();
+    if (matched.length === 0){ showToast("Nothing matched — check the filters or SKUs and try again.", true); return; }
+    showToast(`Tagged ${BULK_FIELD_LABELS[field] || field} for ${matched.length} item${matched.length===1?"":"s"}.`);
+    commit();
+  });
+
+  /* ============ build kit (consume component stock, produce a finished item) ============ */
+  function fillKitItemSelect(select, selectedId){
+    select.innerHTML = state.items.slice().sort((a,b)=>a.name.localeCompare(b.name))
+      .map(i => `<option value="${i.id}" ${i.id===selectedId?"selected":""}>${esc(i.name)} (${esc(i.sku)}) — ${Number(i.qty)||0} on hand</option>`).join("");
+  }
+  function openKitDialog(prefill){
+    if (state.items.length === 0){ showToast("Add at least one item before building a kit.", true); return; }
+    const dlg = document.getElementById("dlg-kit");
+    const form = document.getElementById("form-kit");
+    form.reset();
+    document.getElementById("f-kit-component").classList.remove("err");
+    document.getElementById("f-kit-finished").classList.remove("err");
+    fillKitItemSelect(document.getElementById("in-kit-component"), prefill ? prefill.componentId : null);
+    fillKitItemSelect(document.getElementById("in-kit-finished"), prefill ? prefill.finishedId : null);
+    document.getElementById("in-kit-ratio").value = prefill ? prefill.ratio : 10;
+    document.getElementById("in-kit-qty").value = prefill ? prefill.qty : 1;
+    document.getElementById("in-kit-notes").value = "";
+    renderKitSummary();
+    renderKitHistory();
+    dlg.showModal();
+  }
+  // Detects the loose-stick component ("-STK" or "-STKV3") that kits into a "-10" finished
+  // item, by matching everything before that suffix — e.g. "BG-CAF-PCH-LMAD-10" pairs with
+  // "BG-CAF-PCH-LMAD-STK" / "-STKV3" (the same product; STKV3 is just retail-compliant
+  // packaging). When both component variants exist, prefers whichever currently has more stock.
+  function stripKitSuffix(sku){
+    return String(sku||"").replace(/-(10|stkv3|stk)$/i, "");
+  }
+  // Shared by the Inventory table's "10 Packs" columns and any other view that wants to show a
+  // -10 item's matching loose-stick stock alongside it.
+  function findKitVariant(sku, suffix){
+    const base = stripKitSuffix(sku).toLowerCase();
+    if (!base) return null;
+    const target = `${base}-${suffix}`;
+    return state.items.find(i => i.sku.toLowerCase() === target) || null;
+  }
+  function kitVariantCell(v){
+    return v ? `${Number(v.qty)||0}` : '<span class="cell-sub">—</span>';
+  }
+  function findKitComponent(item){
+    if (!/-10$/i.test(item.sku)) return null;
+    const base = stripKitSuffix(item.sku).toLowerCase();
+    if (!base || base === item.sku.toLowerCase()) return null;
+    const stk = state.items.find(i => i.id !== item.id && /-stk$/i.test(i.sku) && stripKitSuffix(i.sku).toLowerCase() === base);
+    const stkv3 = state.items.find(i => i.id !== item.id && /-stkv3$/i.test(i.sku) && stripKitSuffix(i.sku).toLowerCase() === base);
+    if (stk && stkv3) return (Number(stkv3.qty)||0) > (Number(stk.qty)||0) ? stkv3 : stk;
+    return stk || stkv3 || null;
+  }
+  function quickCreateKit(itemId){
+    const item = itemById(itemId);
+    if (!item) return;
+    const component = findKitComponent(item);
+    if (!component){ showToast("Couldn't find a matching -STK/-STKV3 item for this SKU.", true); return; }
+    openKitDialog({ componentId: component.id, finishedId: item.id, ratio: 10, qty: Number(item.reorderQty) || 1 });
+  }
+  function renderKitSummary(){
+    const component = itemById(document.getElementById("in-kit-component").value);
+    const ratio = Number(document.getElementById("in-kit-ratio").value) || 0;
+    const qty = Number(document.getElementById("in-kit-qty").value) || 0;
+    const summaryEl = document.getElementById("kit-summary");
+    if (!component || !ratio || !qty){ summaryEl.innerHTML = ""; return; }
+    const consumed = ratio * qty;
+    const onHand = Number(component.qty) || 0;
+    const short = consumed > onHand;
+    summaryEl.innerHTML = `
+      <div><div class="k">Will consume</div><div class="v" style="${short?"color:var(--critical);":""}">${consumed.toLocaleString("en-US",{maximumFractionDigits:2})} ${esc(component.sku)}</div></div>
+      <div><div class="k">Currently on hand</div><div class="v">${onHand.toLocaleString("en-US",{maximumFractionDigits:2})}</div></div>
+      ${short ? `<div><div class="k">&nbsp;</div><div class="v" style="color:var(--critical);font-weight:600;">Not enough on hand — this will take it negative</div></div>` : ""}
+    `;
+  }
+  function renderKitHistory(){
+    const el = document.getElementById("kit-history");
+    const recent = state.kits.slice(-5).reverse();
+    if (recent.length === 0){ el.innerHTML = ""; return; }
+    el.innerHTML = `
+      <div class="hint" style="margin-top:4px;">Recent kits</div>
+      <div class="table-wrap" style="max-height:160px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;">
+        <table>
+          <thead><tr><th>Date</th><th>Consumed</th><th>Produced</th></tr></thead>
+          <tbody>
+            ${recent.map(k => `<tr><td>${fmtDate(k.date)}</td><td class="mono">${k.componentQtyConsumed} ${esc(k.componentSku)}</td><td class="mono">${k.finishedQtyProduced} ${esc(k.finishedSku)}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
+  }
+  ["in-kit-component","in-kit-finished","in-kit-ratio","in-kit-qty"].forEach(id => {
+    document.getElementById(id).addEventListener("input", renderKitSummary);
+  });
+  document.getElementById("form-kit").addEventListener("submit", e => {
+    e.preventDefault();
+    const componentId = document.getElementById("in-kit-component").value;
+    const finishedId = document.getElementById("in-kit-finished").value;
+    const ratio = Number(document.getElementById("in-kit-ratio").value) || 0;
+    const qty = Number(document.getElementById("in-kit-qty").value) || 0;
+    const notes = document.getElementById("in-kit-notes").value.trim();
+
+    let ok = true;
+    document.getElementById("f-kit-component").classList.toggle("err", !componentId); if (!componentId) ok = false;
+    document.getElementById("f-kit-finished").classList.toggle("err", !finishedId); if (!finishedId) ok = false;
+    if (componentId && finishedId && componentId === finishedId){
+      showToast("Component and finished item can't be the same item.", true);
+      ok = false;
+    }
+    if (!ratio || ratio <= 0){ showToast("Enter a ratio greater than 0.", true); ok = false; }
+    if (!qty || qty <= 0){ showToast("Enter how many finished units to build.", true); ok = false; }
+    if (!ok) return;
+
+    const component = itemById(componentId);
+    const finished = itemById(finishedId);
+    const consumed = ratio * qty;
+
+    component.qty = (Number(component.qty)||0) - consumed;
+    finished.qty = (Number(finished.qty)||0) + qty;
+
+    state.kits.push({
+      id: uid("kit"), date: todayISO(),
+      componentItemId: component.id, componentSku: component.sku, componentQtyConsumed: consumed,
+      finishedItemId: finished.id, finishedSku: finished.sku, finishedQtyProduced: qty,
+      ratio, notes
+    });
+
+    document.getElementById("dlg-kit").close();
+    showToast(`Built ${qty} ${finished.sku} — used ${consumed.toLocaleString("en-US",{maximumFractionDigits:2})} ${component.sku}.`);
+    commit();
+  });
+
+  /* ============ inventory import (CSV / Excel) ============ */
+  let importParsed = null;      // { headers:[...], rows:[[...],...] } — the active sheet/CSV
+  let importFileName = "";
+  let importSheetName = "";     // set when the source is a multi-sheet workbook
+  let importWorkbook = null;    // { sheets:[{name,path}], loadSheet(path) } for .xlsx sources
+
+  // shared column-guessing: the first group that matches ANY header wins, checked across every
+  // header before falling back to the next group — so a specific column (say "ATP") is
+  // preferred over a generic one ("on hand") even if the generic one happens to appear first.
+  function guessColumn(headers, groups){
+    for (const group of groups){
+      const hit = headers.find(h => group.some(p => h.toLowerCase().includes(p)));
+      if (hit) return hit;
+    }
+    return "";
+  }
+  const SKU_GUESS_GROUPS = [["sku"], ["item id","item number","itemcode","item code"], ["number"]];
+  // standing rule: different source files export the on-hand qty under different column names —
+  // when the FILE NAME matches a known source, prefer that source's specific column over the
+  // general guess-priority list below. Add more entries as you tell me about more file types.
+  const QTY_COLUMN_BY_FILENAME_PATTERN = [
+    { re: /supply chain master/i, header: "total co atp qty api" }
+  ];
+  function preferredQtyColumnForFile(headers, fileName){
+    const name = String(fileName || "").toLowerCase();
+    for (const rule of QTY_COLUMN_BY_FILENAME_PATTERN){
+      if (!rule.re.test(name)) continue;
+      const hit = headers.find(h => h.toLowerCase().includes(rule.header));
+      if (hit) return hit;
+    }
+    return null;
+  }
+  let importCategoryIndex = null; // { skuSetsByTab: Map<tabName,Set<sku>>, cleanNameByTab: Map<tabName,string>, tabsInfo:[{name,cleanName,count}] }
+
+  // Tabs where a second, differently-shaped block is appended below the real SKU table with no
+  // safe-to-detect boundary (no header row of its own, same columns reused for something else)
+  // — capped to the last row confirmed to still be the real table.
+  const SHEET_ROW_LIMITS = { "mailers": 45 };
+  function rowLimitForSheet(name){
+    return SHEET_ROW_LIMITS[String(name||"").trim().toLowerCase()] || null;
+  }
+
+  // Raw tab names that read a little differently from the clean labels already offered in the
+  // category dropdown (casing, a stray "(2)" suffix, etc.) — mapped so a SKU tagged from the
+  // "sticks (2)" tab, say, lands in Supply Desk as "Sticks" and actually matches that filter.
+  const CATEGORY_TAB_ALIASES = {
+    "10 packs": "10 Packs",
+    "sticks (2)": "Sticks",
+    "bags": "Bags",
+    "vitamins": "Vitamins",
+    "15 retail": "15 Retail",
+    "variety packs": "Variety Packs",
+    "mailers": "Mailers",
+    "merch": "Merch"
+  };
+  function cleanCategoryLabel(tabName){
+    return CATEGORY_TAB_ALIASES[tabName.trim().toLowerCase()] || tabName.trim();
+  }
+  // True when a tab's name is itself a recognizable product category (like "Ecomm" or "Sticks"),
+  // as opposed to a generic combined sheet (like "Master" or "Inventory"). Used so that importing
+  // directly FROM a category tab still tags those items with that category — otherwise category
+  // tags only ever come from *other* tabs matching a SKU already on the primary sheet, and a
+  // category tab picked as the primary sheet would never tag its own items.
+  function isRecognizedCategoryTabName(tabName){
+    const lower = String(tabName || "").trim().toLowerCase();
+    if (!lower) return false;
+    if (CATEGORY_TAB_ALIASES[lower]) return true;
+    return PRESET_CATEGORIES.some(c => c.toLowerCase() === lower);
+  }
+  // standing rule: a SKU's own prefix/suffix identifies its category directly, per your explicit
+  // instruction — checked ahead of any tab-based signal, so it works regardless of which tab or
+  // file the item was imported from (no more needing separate per-category tabs at all).
+  const SKU_CATEGORY_PATTERNS = [
+    { re: /-scp$/i,        category: "Bags" },
+    { re: /^bvit-/i,       category: "Vitamins" },
+    { re: /-parent$/i,     category: "Mailers" },
+    { re: /^bd-/i,         category: "Merch" },
+    { re: /-varty-30$/i,   category: "Variety Packs" },
+    { re: /-15$/i,         category: "15 Retail" },
+    { re: /-online-30$/i,  category: "Online" },
+    { re: /-ecomm-30$/i,   category: "Ecomm" }
+  ];
+  function inferCategoryFromSku(sku){
+    const s = String(sku || "").trim();
+    for (const { re, category } of SKU_CATEGORY_PATTERNS){
+      if (re.test(s)) return category;
+    }
+    return null;
+  }
+
+  // Scans every OTHER tab in the workbook (skipping the chosen data-source tab and obvious
+  // non-category tabs like "PO"/"Next PO"), and records which SKUs appear on each — so an item
+  // can be tagged with a category matching whichever tab(s) list it. Also caches each tab's full
+  // parsed {headers,rows}, because a checked tab isn't just a source of tags: some SKUs (e.g. raw
+  // component SKUs ordered from a manufacturer) only ever appear on their own tab and never make
+  // it into the primary sheet at all — those need to come in as real items too.
+  async function buildCategoryIndex(workbook, excludeSheetName){
+    const skuSetsByTab = new Map();
+    const cleanNameByTab = new Map();
+    const sheetDataByTab = new Map();
+    const tabsInfo = [];
+    for (const sheet of workbook.sheets){
+      if (sheet.name === excludeSheetName) continue;
+      if (/^(next\s*)?po$/i.test(sheet.name.trim())) continue;
+      // not a clean SKU list (notes rows above the data, SKU in a different column than the
+      // rest of the workbook) — excluded rather than guessed at, per explicit instruction.
+      if (sheet.name.trim().toLowerCase() === "15 ct retail online packs") continue;
+      // "Retail" (distinct from "15 Retail") — excluded per explicit instruction; the category
+      // is gone from Supply Desk entirely, so this tab is never scanned or tagged from.
+      if (sheet.name.trim().toLowerCase() === "retail") continue;
+      let parsed;
+      try{ parsed = await workbook.loadSheet(sheet.path, rowLimitForSheet(sheet.name)); }
+      catch(e){ continue; }
+      if (!parsed.headers.length) continue;
+      const skuHeader = guessColumn(parsed.headers, SKU_GUESS_GROUPS);
+      let skuIdx;
+      if (skuHeader){
+        skuIdx = parsed.headers.indexOf(skuHeader);
+      } else {
+        // No column is named "SKU"/"Number"/etc — some tabs carry the identifier in column A
+        // with no header label at all. Fall back to column A, but only when its values actually
+        // look like SKUs (contain a letter) rather than, say, a repeated numeric constant —
+        // otherwise skip the tab rather than risk tagging garbage as an "item".
+        const colAVals = parsed.rows.map(r => String(r[0] ?? "").trim()).filter(Boolean);
+        const looksLikeSkus = colAVals.filter(v => /[A-Za-z]/.test(v)).length;
+        if (colAVals.length === 0 || looksLikeSkus / colAVals.length < 0.5) continue;
+        skuIdx = 0;
+      }
+      const nameHeader = guessColumn(parsed.headers, [["description","short desc"], ["name","item name"]]);
+      const nameIdxForExclusion = nameHeader ? parsed.headers.indexOf(nameHeader) : -1;
+      const set = new Set();
+      parsed.rows.forEach(r => {
+        const sku = String(r[skuIdx] ?? "").trim();
+        const rowName = nameIdxForExclusion >= 0 ? String(r[nameIdxForExclusion] ?? "").trim() : "";
+        if (sku && !isExcludedFromSourceTab(sheet.name, sku, rowName) && !isBndlExcluded(rowName, sku) && !isXRedoExcluded(rowName, sku) && !isMailerExcluded(sku) && !isMalformedSku(sku) && !isPurelyNumericSku(sku) && !isManuallyExcludedSku(sku)) set.add(sku.toLowerCase());
+      });
+      if (set.size === 0) continue;
+      const cleanName = cleanCategoryLabel(sheet.name);
+      skuSetsByTab.set(sheet.name, set);
+      cleanNameByTab.set(sheet.name, cleanName);
+      sheetDataByTab.set(sheet.name, parsed);
+      tabsInfo.push({ name: sheet.name, cleanName, count: set.size });
+    }
+    return { skuSetsByTab, cleanNameByTab, sheetDataByTab, tabsInfo };
+  }
+
+  function parseCSV(text){
+    const rows = [];
+    let row = [], field = "", inQuotes = false;
+    for (let i=0;i<text.length;i++){
+      const c = text[i];
+      if (inQuotes){
+        if (c === '"'){
+          if (text[i+1] === '"'){ field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else {
+        if (c === '"') inQuotes = true;
+        else if (c === ","){ row.push(field); field = ""; }
+        else if (c === "\n"){ row.push(field); rows.push(row); row = []; field = ""; }
+        else if (c === "\r"){ /* ignore, \n handles the break */ }
+        else field += c;
+      }
+    }
+    if (field.length || row.length){ row.push(field); rows.push(row); }
+    const clean = rows.filter(r => !(r.length === 1 && r[0].trim() === ""));
+    if (clean.length === 0) return { headers:[], rows:[] };
+    const headers = clean[0].map(h => h.trim());
+    return { headers, rows: clean.slice(1) };
+  }
+
+  // ---- minimal .xlsx reader: unzip (stored/deflate) + read the first worksheet ----
+  function readUInt32LE(buf,o){ return ((buf[o] | (buf[o+1]<<8) | (buf[o+2]<<16) | (buf[o+3]<<24)) >>> 0); }
+  function readUInt16LE(buf,o){ return buf[o] | (buf[o+1]<<8); }
+  function readZipEntries(buf){
+    const EOCD_SIG = 0x06054b50;
+    let eocd = -1;
+    const start = Math.max(0, buf.length - 22 - 65557);
+    for (let i = buf.length - 22; i >= start; i--){
+      if (readUInt32LE(buf,i) === EOCD_SIG){ eocd = i; break; }
+    }
+    if (eocd === -1) throw new Error("That doesn't look like a valid .xlsx file.");
+    const cdOffset = readUInt32LE(buf, eocd + 16);
+    const cdCount = readUInt16LE(buf, eocd + 10);
+    const entries = {};
+    let p = cdOffset;
+    for (let i=0;i<cdCount;i++){
+      if (readUInt32LE(buf, p) !== 0x02014b50) break;
+      const method = readUInt16LE(buf, p+10);
+      const compSize = readUInt32LE(buf, p+20);
+      const nameLen = readUInt16LE(buf, p+28);
+      const extraLen = readUInt16LE(buf, p+30);
+      const commentLen = readUInt16LE(buf, p+32);
+      const localOffset = readUInt32LE(buf, p+42);
+      const name = new TextDecoder("utf-8").decode(buf.subarray(p+46, p+46+nameLen));
+      entries[name] = { method, compSize, localOffset };
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+    Object.keys(entries).forEach(name => {
+      const e = entries[name];
+      const lp = e.localOffset;
+      if (readUInt32LE(buf, lp) !== 0x04034b50) return;
+      const lNameLen = readUInt16LE(buf, lp+26);
+      const lExtraLen = readUInt16LE(buf, lp+28);
+      const dataStart = lp + 30 + lNameLen + lExtraLen;
+      e.raw = buf.subarray(dataStart, dataStart + e.compSize);
+    });
+    return entries;
+  }
+  async function inflateRaw(bytes){
+    if (typeof DecompressionStream === "undefined"){
+      throw new Error("This browser can't read .xlsx files here — try exporting as CSV instead.");
+    }
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  function colToIndex(ref){
+    const m = (ref||"").match(/^([A-Z]+)/i);
+    if (!m) return 0;
+    const letters = m[1].toUpperCase();
+    let idx = 0;
+    for (let i=0;i<letters.length;i++) idx = idx*26 + (letters.charCodeAt(i)-64);
+    return idx - 1;
+  }
+  const XLSX_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+  // Opens an .xlsx as a workbook: resolves every tab by its real name (via xl/workbook.xml +
+  // xl/_rels/workbook.xml.rels) rather than assuming the first worksheet file is the one wanted —
+  // a workbook's tab order and its internal sheetN.xml numbering are independent of each other.
+  async function parseWorkbook(file){
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const entries = readZipEntries(buf);
+    async function readEntry(name){
+      const e = entries[name];
+      if (!e) return null;
+      if (e.method === 0) return e.raw;
+      if (e.method === 8) return await inflateRaw(e.raw);
+      throw new Error("That workbook uses a compression format Supply Desk can't read — try exporting as CSV.");
+    }
+
+    let sheetList = [];
+    const wbBytes = await readEntry("xl/workbook.xml");
+    const relsBytes = await readEntry("xl/_rels/workbook.xml.rels");
+    if (wbBytes && relsBytes){
+      const relMap = {};
+      const relsDoc = new DOMParser().parseFromString(new TextDecoder("utf-8").decode(relsBytes), "application/xml");
+      Array.from(relsDoc.getElementsByTagName("Relationship")).forEach(r => {
+        relMap[r.getAttribute("Id")] = r.getAttribute("Target");
+      });
+      const wbDoc = new DOMParser().parseFromString(new TextDecoder("utf-8").decode(wbBytes), "application/xml");
+      sheetList = Array.from(wbDoc.getElementsByTagName("sheet")).map(el => {
+        const name = el.getAttribute("name") || "Sheet";
+        const rid = el.getAttributeNS(XLSX_REL_NS, "id") || el.getAttribute("r:id");
+        let target = relMap[rid];
+        if (!target) return null;
+        target = target.replace(/^\.?\//, "");
+        return { name, path: target.startsWith("xl/") ? target : ("xl/" + target) };
+      }).filter(Boolean);
+    }
+    if (sheetList.length === 0){
+      // fallback for workbooks this quick path can't map by name — grab worksheets in file order
+      sheetList = Object.keys(entries)
+        .filter(n => /^xl\/worksheets\/sheet\d+\.xml$/i.test(n))
+        .sort((a,b) => Number(a.match(/sheet(\d+)\.xml/i)[1]) - Number(b.match(/sheet(\d+)\.xml/i)[1]))
+        .map((path,i) => ({ name: "Sheet " + (i+1), path }));
+    }
+    if (sheetList.length === 0) throw new Error("No worksheets found in that file.");
+
+    let sharedStrings = [];
+    const ssBytes = await readEntry("xl/sharedStrings.xml");
+    if (ssBytes){
+      const ssDoc = new DOMParser().parseFromString(new TextDecoder("utf-8").decode(ssBytes), "application/xml");
+      sharedStrings = Array.from(ssDoc.getElementsByTagName("si")).map(si =>
+        Array.from(si.getElementsByTagName("t")).map(t => t.textContent).join("")
+      );
+    }
+
+    // maxRow, when given, drops any data row past that ORIGINAL spreadsheet row number — for
+    // tabs (like "mailers") where a second, differently-shaped report is appended below the
+    // real SKU table with no blank-row/header boundary a heuristic could detect safely.
+    async function loadSheet(path, maxRow){
+      const bytes = await readEntry(path);
+      if (!bytes) throw new Error("Couldn't find that tab inside the workbook.");
+      const doc = new DOMParser().parseFromString(new TextDecoder("utf-8").decode(bytes), "application/xml");
+      const entries = []; // { rowNum, cells }
+      let maxCol = 0;
+      Array.from(doc.getElementsByTagName("row")).forEach(rowEl => {
+        const rowNum = Number(rowEl.getAttribute("r")) || 0;
+        const rowArr = [];
+        Array.from(rowEl.getElementsByTagName("c")).forEach(c => {
+          const idx = colToIndex(c.getAttribute("r"));
+          const type = c.getAttribute("t");
+          const vEl = c.getElementsByTagName("v")[0];
+          let value = "";
+          if (type === "s"){
+            const si = vEl ? Number(vEl.textContent) : -1;
+            value = sharedStrings[si] !== undefined ? sharedStrings[si] : "";
+          } else if (type === "inlineStr"){
+            const isEl = c.getElementsByTagName("is")[0];
+            value = isEl ? Array.from(isEl.getElementsByTagName("t")).map(t=>t.textContent).join("") : "";
+          } else {
+            value = vEl ? vEl.textContent : "";
+          }
+          rowArr[idx] = value;
+          if (idx > maxCol) maxCol = idx;
+        });
+        entries.push({ rowNum, cells: rowArr });
+      });
+      entries.forEach(e => { for (let i=0;i<=maxCol;i++) if (e.cells[i] === undefined) e.cells[i] = ""; });
+      const nonEmpty = entries.filter(e => e.cells.some(v => String(v).trim() !== ""));
+      if (nonEmpty.length === 0) return { headers:[], rows:[] };
+      const headers = nonEmpty[0].cells.map(h => String(h).trim());
+      let dataEntries = nonEmpty.slice(1);
+      if (maxRow) dataEntries = dataEntries.filter(e => e.rowNum <= maxRow);
+      return { headers, rows: dataEntries.map(e => e.cells) };
+    }
+
+    return { sheets: sheetList, loadSheet };
+  }
+
+  function openImportDialog(){
+    const dlg = document.getElementById("dlg-import");
+    document.getElementById("import-file").value = "";
+    document.getElementById("import-paste").value = "";
+    document.getElementById("import-step-source").hidden = false;
+    document.getElementById("import-step-map").hidden = true;
+    document.getElementById("import-step-map").innerHTML = "";
+    document.getElementById("import-parse").hidden = false;
+    document.getElementById("import-sync-btn").hidden = true;
+    importParsed = null;
+    importWorkbook = null;
+    importSheetName = "";
+    importCategoryIndex = null;
+    dlg.showModal();
+  }
+
+  async function loadImportSheet(sheet){
+    importSheetName = sheet.name;
+    importParsed = await importWorkbook.loadSheet(sheet.path, rowLimitForSheet(sheet.name));
+  }
+
+  document.getElementById("import-parse").addEventListener("click", async () => {
+    const btn = document.getElementById("import-parse");
+    const fileInput = document.getElementById("import-file");
+    const original = btn.textContent;
+    try{
+      importCategoryIndex = null;
+      if (fileInput.files && fileInput.files[0]){
+        const file = fileInput.files[0];
+        importFileName = file.name;
+        if (/\.xlsx$/i.test(file.name)){
+          btn.disabled = true; btn.textContent = "Reading file…";
+          importWorkbook = await parseWorkbook(file);
+          const guessIdx = importWorkbook.sheets.findIndex(s => /master|inventory|on.?hand|stock/i.test(s.name));
+          await loadImportSheet(importWorkbook.sheets[guessIdx >= 0 ? guessIdx : 0]);
+        } else {
+          importWorkbook = null; importSheetName = "";
+          importParsed = parseCSV(await file.text());
+        }
+      } else {
+        const text = document.getElementById("import-paste").value;
+        if (!text.trim()){ showToast("Choose a file or paste CSV text first.", true); return; }
+        importFileName = "pasted CSV";
+        importWorkbook = null; importSheetName = "";
+        importParsed = parseCSV(text);
+      }
+      if (!importParsed || importParsed.headers.length === 0){
+        showToast(`Couldn't find any rows${importSheetName ? ` in the "${importSheetName}" tab` : ""} of that file.`, true);
+        return;
+      }
+      document.getElementById("import-step-source").hidden = true;
+      btn.hidden = true;
+      renderImportMapping();
+      // Auto-categorization (scanning every other tab for matching SKUs) is a bonus, not
+      // required for the core import — and reading a large multi-tab workbook all in one go
+      // is enough, on some phones, to make the browser silently reload the whole page. Run
+      // it after the mapping screen is already showing, so the core import always gets there
+      // even when this doesn't.
+      if (importWorkbook && importWorkbook.sheets.length > 1) scanCategoriesInBackground();
+    } catch(e){
+      showToast((e && e.message) ? e.message : "Couldn't read that file.", true);
+    } finally {
+      btn.disabled = false; btn.textContent = original;
+    }
+  });
+
+  async function scanCategoriesInBackground(){
+    const workbook = importWorkbook, sheetName = importSheetName;
+    try{
+      const idx = await buildCategoryIndex(workbook, sheetName);
+      // Only apply if the user hasn't since picked a different file/tab out from under us.
+      if (importWorkbook === workbook && importSheetName === sheetName){
+        importCategoryIndex = idx;
+        renderCategorySection();
+      }
+    } catch(e){ /* categorization is a bonus — never block the core import over it */ }
+  }
+
+  function renderImportMapping(){
+    const mapEl = document.getElementById("import-step-map");
+    mapEl.hidden = false;
+    const headers = importParsed.headers;
+    const guessSku = guessColumn(headers, SKU_GUESS_GROUPS);
+    const guessQty = preferredQtyColumnForFile(headers, importFileName)
+      || guessColumn(headers, [["total sellable"], ["atp"], ["available"], ["on hand","onhand"], ["qty","quantity"]]);
+    const guessName = guessColumn(headers, [["description","short desc"], ["name","item name"]]);
+    const guessCost = guessColumn(headers, [["unit cost"], ["avg cost","average cost"], ["cost"], ["price"]]);
+    const guessSalesPerDay = guessColumn(headers, [["sale/day","sales/day"], ["sale per day","sales per day"], ["units/day","units per day"], ["velocity"]]);
+    // Optional — feeds the dashboard's physical/sellable mismatch tile, not the main qty flow.
+    const guessTotalPhysical = guessColumn(headers, [["total physical"], ["physical qty","physical quantity"]]);
+    const guessTotalSellable = guessColumn(headers, [["total sellable"], ["sellable qty","sellable quantity"]]);
+    // a second on-hand-ish column, distinct from whatever won the primary qty guess above —
+    // some exports only populate an ATP/available column for part of the catalog (e.g. sellable
+    // SKUs) and leave it blank elsewhere, so a fallback column lets those rows still come in.
+    const fallbackPatterns = ["on hand","onhand","available","qty","quantity"];
+    const guessQtyFallback = headers.find(h => h !== guessQty && fallbackPatterns.some(p => h.toLowerCase().includes(p))) || "";
+    const opt = (h, sel) => `<option value="${esc(h)}" ${h===sel?"selected":""}>${esc(h)}</option>`;
+    const noneOpt = `<option value="">Don't use</option>`;
+
+    const sheetPicker = (importWorkbook && importWorkbook.sheets.length > 1) ? `
+      <div class="field">
+        <label for="imp-sheet">Tab</label>
+        <select id="imp-sheet">${importWorkbook.sheets.map(s => `<option value="${esc(s.name)}" ${s.name===importSheetName?"selected":""}>${esc(s.name)}</option>`).join("")}</select>
+      </div>` : "";
+
+    mapEl.innerHTML = `
+      ${sheetPicker}
+      <div class="hint">Found ${importParsed.rows.length} row${importParsed.rows.length===1?"":"s"}${importSheetName ? ` in the "${esc(importSheetName)}" tab` : ""} of ${esc(importFileName)}. Match its columns to Supply Desk:</div>
+      <div class="field-grid">
+        <div class="field"><label for="imp-col-sku">SKU column</label><select id="imp-col-sku">${headers.map(h=>opt(h,guessSku)).join("")}</select></div>
+        <div class="field"><label for="imp-col-qty">Qty column</label><select id="imp-col-qty">${headers.map(h=>opt(h,guessQty)).join("")}</select></div>
+        <div class="field"><label for="imp-col-qty-fallback">If that's blank, use instead</label><select id="imp-col-qty-fallback">${noneOpt}${headers.map(h=>opt(h,guessQtyFallback)).join("")}</select><div class="hint">Handy when a qty column (like ATP) is only populated for part of the catalog</div></div>
+        <div class="field"><label for="imp-col-name">Item name column</label><select id="imp-col-name">${noneOpt}${headers.map(h=>opt(h,guessName)).join("")}</select></div>
+        <div class="field"><label for="imp-col-cost">Unit cost column</label><select id="imp-col-cost">${noneOpt}${headers.map(h=>opt(h,guessCost)).join("")}</select></div>
+        <div class="field"><label for="imp-col-sales-per-day">Sale/day column</label><select id="imp-col-sales-per-day">${noneOpt}${headers.map(h=>opt(h,guessSalesPerDay)).join("")}</select></div>
+        <div class="field"><label for="imp-col-total-physical">Total physical qty column</label><select id="imp-col-total-physical">${noneOpt}${headers.map(h=>opt(h,guessTotalPhysical)).join("")}</select><div class="hint">Optional — used to flag a physical/sellable mismatch on the dashboard</div></div>
+        <div class="field"><label for="imp-col-total-sellable">Total sellable qty column</label><select id="imp-col-total-sellable">${noneOpt}${headers.map(h=>opt(h,guessTotalSellable)).join("")}</select></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;"><input type="checkbox" id="imp-add-new" checked> Add SKUs from the file that aren't in Supply Desk yet</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;"><input type="checkbox" id="imp-update-cost"> Also update unit cost from the file</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--critical);"><input type="checkbox" id="imp-zero-missing"> Set qty to 0 for Supply Desk items not found in this file</label>
+      </div>
+      <div id="import-category-section"></div>
+      <div id="import-preview"></div>
+    `;
+    const sheetSel = document.getElementById("imp-sheet");
+    if (sheetSel){
+      sheetSel.addEventListener("change", async e => {
+        const sheet = importWorkbook.sheets.find(s => s.name === e.target.value);
+        mapEl.style.opacity = "0.5";
+        await loadImportSheet(sheet);
+        importCategoryIndex = null;
+        mapEl.style.opacity = "";
+        renderImportMapping();
+        if (importWorkbook.sheets.length > 1) scanCategoriesInBackground();
+      });
+    }
+    ["imp-col-sku","imp-col-qty","imp-col-qty-fallback","imp-col-name","imp-col-cost","imp-col-sales-per-day","imp-col-total-physical","imp-col-total-sellable","imp-add-new","imp-update-cost","imp-zero-missing"]
+      .forEach(id => document.getElementById(id).addEventListener("change", renderImportPreview));
+    renderCategorySection();
+  }
+
+  function renderCategorySection(){
+    const wrap = document.getElementById("import-category-section");
+    if (!wrap) return; // mapping screen isn't open anymore (user moved on or closed the dialog)
+    wrap.innerHTML = (importCategoryIndex && importCategoryIndex.tabsInfo.length) ? `
+      <fieldset>
+        <legend>Also include & tag items from other tabs</legend>
+        <div class="hint" style="margin-top:-6px;">Checked tabs are searched in this order. A SKU already in the sheet above just gets tagged with the first tab it's found on; a SKU that <em>only</em> exists on one of these tabs is pulled in as a new item too, using that tab's own qty/name/cost columns.</div>
+        <div style="display:flex;flex-direction:column;gap:6px;max-height:150px;overflow-y:auto;">
+          ${importCategoryIndex.tabsInfo.map(t => `<label style="display:flex;gap:8px;align-items:center;font-size:13px;"><input type="checkbox" class="imp-cat-tab" value="${esc(t.name)}" checked> ${esc(t.cleanName)} <span class="cell-sub">(${t.count} SKUs${t.cleanName!==t.name ? `, tab "${esc(t.name)}"` : ""})</span></label>`).join("")}
+        </div>
+      </fieldset>` : "";
+    document.querySelectorAll(".imp-cat-tab").forEach(cb => cb.addEventListener("change", renderImportPreview));
+    renderImportPreview();
+  }
+
+  function computeImportPlan(){
+    const skuCol = document.getElementById("imp-col-sku").value;
+    const qtyCol = document.getElementById("imp-col-qty").value;
+    const qtyFallbackCol = document.getElementById("imp-col-qty-fallback").value;
+    const nameCol = document.getElementById("imp-col-name").value;
+    const costCol = document.getElementById("imp-col-cost").value;
+    const salesPerDayCol = document.getElementById("imp-col-sales-per-day").value;
+    const totalPhysicalCol = document.getElementById("imp-col-total-physical").value;
+    const totalSellableCol = document.getElementById("imp-col-total-sellable").value;
+    if (!skuCol || !qtyCol) return null;
+
+    const checkedCategoryTabs = importCategoryIndex
+      ? Array.from(document.querySelectorAll(".imp-cat-tab:checked")).map(cb => cb.value)
+      : [];
+    // If the primary sheet you're importing FROM is itself a recognizable category tab (e.g.
+    // you picked "Ecomm" as the Tab, not a combined "Master" sheet), fall back to tagging with
+    // that tab's own category when nothing else claims the SKU first.
+    const primaryCategoryLabel = (importSheetName && isRecognizedCategoryTabName(importSheetName))
+      ? cleanCategoryLabel(importSheetName) : null;
+    function resolveCategory(skuLower){
+      const patternCategory = inferCategoryFromSku(skuLower);
+      if (patternCategory) return patternCategory;
+      for (const tabName of checkedCategoryTabs){
+        const set = importCategoryIndex.skuSetsByTab.get(tabName);
+        if (set && set.has(skuLower)) return importCategoryIndex.cleanNameByTab.get(tabName);
+      }
+      return primaryCategoryLabel;
+    }
+
+    // Every source that can contribute actual item rows: the chosen primary sheet first, then
+    // each checked "other tab" that has its own data — so a SKU that only exists on, say, the
+    // "sticks" tab (never listed in the primary sheet at all) still gets pulled in as a real
+    // item, using that tab's own qty/name/cost/sale-per-day columns. The first source (in this
+    // priority order) that has a usable qty for a given SKU wins that SKU entirely — later
+    // sources are only consulted for SKUs the earlier ones didn't establish.
+    const sources = [{ name: importSheetName || "", headers: importParsed.headers, rows: importParsed.rows }];
+    if (importCategoryIndex){
+      checkedCategoryTabs.forEach(tabName => {
+        const sheet = importCategoryIndex.sheetDataByTab.get(tabName);
+        if (sheet) sources.push({ name: tabName, headers: sheet.headers, rows: sheet.rows });
+      });
+    }
+
+    const merged = new Map(); // sku_lower -> { sku, qty, name, cost, salesPerDay, fellBack }
+    const skippedRows = [];
+    let usedFallback = 0;
+
+    sources.forEach(source => {
+      const skuIdx = source.headers.indexOf(skuCol);
+      const qtyIdx = source.headers.indexOf(qtyCol);
+      if (skuIdx === -1 || qtyIdx === -1) return; // this tab doesn't have matching columns — contributes nothing
+      const qtyFallbackIdx = qtyFallbackCol ? source.headers.indexOf(qtyFallbackCol) : -1;
+      const nameIdx = nameCol ? source.headers.indexOf(nameCol) : -1;
+      const costIdx = costCol ? source.headers.indexOf(costCol) : -1;
+      const salesPerDayIdx = salesPerDayCol ? source.headers.indexOf(salesPerDayCol) : -1;
+      const totalPhysicalIdx = totalPhysicalCol ? source.headers.indexOf(totalPhysicalCol) : -1;
+      const totalSellableIdx = totalSellableCol ? source.headers.indexOf(totalSellableCol) : -1;
+
+      source.rows.forEach(r => {
+        const sku = String(r[skuIdx] ?? "").trim();
+        if (!sku) return;
+        const key = sku.toLowerCase();
+        if (merged.has(key)) return; // a higher-priority source already established this SKU
+        const name = nameIdx >= 0 ? String(r[nameIdx] ?? "").trim() : "";
+        if (isWholesaleExcluded(name, sku)){ skippedRows.push({ sku, reason:"[Wholesale] item (excluded by rule)" }); return; }
+        if (isBndlExcluded(name, sku)){ skippedRows.push({ sku, reason:'"bndl" item (excluded by rule)' }); return; }
+        if (isXRedoExcluded(name, sku)){ skippedRows.push({ sku, reason:'"x-redo" item (excluded by rule)' }); return; }
+        if (isMailerExcluded(sku)){ skippedRows.push({ sku, reason:'"-mailer" item (excluded by rule)' }); return; }
+        if (isMalformedSku(sku)){ skippedRows.push({ sku, reason:"SKU contains a space — not a real item code, likely a different report sharing these columns" }); return; }
+        if (isPurelyNumericSku(sku)){ skippedRows.push({ sku, reason:"SKU is just digits — likely a quantity value that landed in the SKU column" }); return; }
+        if (isManuallyExcludedSku(sku)){ skippedRows.push({ sku, reason:"excluded by name (added to the manual exclusion list)" }); return; }
+        if (isExcludedFromSourceTab(source.name, sku, name)){ skippedRows.push({ sku, reason:'excluded from the mailers tab by rule ("bundle")' }); return; }
+        let qtyRaw = String(r[qtyIdx] ?? "").trim();
+        let fellBack = false;
+        if (qtyRaw === "" && qtyFallbackIdx >= 0){
+          const fb = String(r[qtyFallbackIdx] ?? "").trim();
+          if (fb !== ""){ qtyRaw = fb; fellBack = true; }
+        }
+        if (qtyRaw === ""){ skippedRows.push({ sku, reason:"no quantity (likely a section header row)" }); return; }
+        const qty = Number(qtyRaw.replace(/[^0-9.\-]/g, ""));
+        if (!Number.isFinite(qty)){ skippedRows.push({ sku, reason:"qty isn't a number" }); return; }
+        if (fellBack) usedFallback++;
+        let cost = null;
+        if (costIdx >= 0){
+          const c = Number(String(r[costIdx] ?? "").replace(/[^0-9.\-]/g, ""));
+          if (Number.isFinite(c)) cost = c;
+        }
+        let salesPerDay = null;
+        if (salesPerDayIdx >= 0){
+          const spd = Number(String(r[salesPerDayIdx] ?? "").replace(/[^0-9.\-]/g, ""));
+          if (Number.isFinite(spd)) salesPerDay = spd;
+        }
+        let totalPhysicalQty = null;
+        if (totalPhysicalIdx >= 0){
+          const tp = Number(String(r[totalPhysicalIdx] ?? "").replace(/[^0-9.\-]/g, ""));
+          if (Number.isFinite(tp)) totalPhysicalQty = tp;
+        }
+        let totalSellableQty = null;
+        if (totalSellableIdx >= 0){
+          const ts = Number(String(r[totalSellableIdx] ?? "").replace(/[^0-9.\-]/g, ""));
+          if (Number.isFinite(ts)) totalSellableQty = ts;
+        }
+        merged.set(key, { sku, qty, name, cost, salesPerDay, totalPhysicalQty, totalSellableQty, fellBack });
+      });
+    });
+
+    const matched = [], added = [];
+    const seenSkus = new Set();
+    merged.forEach((rec, key) => {
+      seenSkus.add(key);
+      const existing = state.items.find(i => i.sku.toLowerCase() === key);
+      const category = resolveCategory(key);
+      if (existing) matched.push({ sku: rec.sku, item: existing, oldQty: Number(existing.qty)||0, newQty: rec.qty, cost: rec.cost, salesPerDay: rec.salesPerDay, totalPhysicalQty: rec.totalPhysicalQty, totalSellableQty: rec.totalSellableQty, category, fellBack: rec.fellBack });
+      else added.push({ sku: rec.sku, name: rec.name || rec.sku, qty: rec.qty, cost: rec.cost ?? 0, salesPerDay: rec.salesPerDay ?? 0, totalPhysicalQty: rec.totalPhysicalQty, totalSellableQty: rec.totalSellableQty, category: category || "", fellBack: rec.fellBack });
+    });
+    const missing = state.items.filter(i => !seenSkus.has(i.sku.toLowerCase()));
+    return { matched, added, missing, skippedRows, usedFallback };
+  }
+
+  function renderImportPreview(){
+    const plan = computeImportPlan();
+    const previewEl = document.getElementById("import-preview");
+    const syncBtn = document.getElementById("import-sync-btn");
+    if (!plan){
+      previewEl.innerHTML = `<div class="hint" style="color:var(--critical);">Choose at least a SKU column and a quantity column.</div>`;
+      syncBtn.hidden = true;
+      return;
+    }
+    const addNew = document.getElementById("imp-add-new").checked;
+    const updateCost = document.getElementById("imp-update-cost").checked;
+    const zeroMissing = document.getElementById("imp-zero-missing").checked;
+    // "changed" = matched rows where SOMETHING this sync would actually write differs from
+    // what's already stored — qty, or (when opted in) cost, a newly-tagged sale/day figure, or
+    // a resolved category.
+    const changed = plan.matched.filter(m =>
+      m.newQty !== m.oldQty ||
+      (updateCost && m.cost !== null && m.cost !== (Number(m.item.cost) || 0)) ||
+      (m.salesPerDay !== null && m.salesPerDay !== (Number(m.item.salesPerDay) || 0)) ||
+      (m.category && m.category !== (m.item.category || ""))
+    );
+    const salesPerDayTagged = plan.matched.filter(m => m.salesPerDay !== null).length + (addNew ? plan.added.filter(a => a.salesPerDay).length : 0);
+    const categorized = plan.matched.filter(m => m.category).length + (addNew ? plan.added.filter(a => a.category).length : 0);
+
+    previewEl.innerHTML = `
+      <div class="kv" style="margin-top:2px;">
+        <div><div class="k">Will update</div><div class="v">${changed.length} of ${plan.matched.length} matched</div></div>
+        <div><div class="k">New SKUs found</div><div class="v">${plan.added.length}${addNew ? "" : " (not added)"}</div></div>
+        <div><div class="k">Not in this file</div><div class="v">${plan.missing.length}</div></div>
+        ${plan.skippedRows.length ? `<div><div class="k">Skipped rows</div><div class="v">${plan.skippedRows.length}</div></div>` : ""}
+        ${plan.usedFallback ? `<div><div class="k">Used fallback qty</div><div class="v">${plan.usedFallback}</div></div>` : ""}
+        ${salesPerDayTagged ? `<div><div class="k">Sale/day tagged</div><div class="v">${salesPerDayTagged}</div></div>` : ""}
+        ${categorized ? `<div><div class="k">Categorized</div><div class="v">${categorized}</div></div>` : ""}
+      </div>
+      ${(changed.length || (addNew && plan.added.length)) ? `
+      <div class="table-wrap" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;margin-top:4px;">
+        <table>
+          <thead><tr><th>SKU</th><th>Item</th><th class="num">Qty</th><th class="num">Sale/day</th><th>Category</th><th></th></tr></thead>
+          <tbody>
+            ${changed.map(m => `<tr><td class="mono">${esc(m.sku)}</td><td>${esc(m.item.name)}${m.fellBack ? ' <span class="pill pill-neutral" title="Primary qty column was blank; used the fallback column">fallback</span>' : ''}</td><td class="num">${m.newQty !== m.oldQty ? `${m.oldQty} → ${m.newQty}` : m.oldQty}</td><td class="num">${m.salesPerDay !== null ? m.salesPerDay : '<span class="cell-sub">—</span>'}</td><td>${m.category ? esc(m.category) : '<span class="cell-sub">—</span>'}</td><td><span class="pill pill-accent">update</span></td></tr>`).join("")}
+            ${addNew ? plan.added.map(a => `<tr><td class="mono">${esc(a.sku)}</td><td>${esc(a.name)}${a.fellBack ? ' <span class="pill pill-neutral" title="Primary qty column was blank; used the fallback column">fallback</span>' : ''}</td><td class="num">${a.qty}</td><td class="num">${a.salesPerDay || '<span class="cell-sub">—</span>'}</td><td>${a.category ? esc(a.category) : '<span class="cell-sub">—</span>'}</td><td><span class="pill pill-ok">new</span></td></tr>`).join("") : ""}
+          </tbody>
+        </table>
+      </div>` : `<div class="panel-empty" style="padding:14px;">No changes detected with this mapping.</div>`}
+    `;
+    syncBtn.hidden = !(changed.length || (addNew && plan.added.length) || zeroMissing);
+  }
+
+  document.getElementById("import-sync-btn").addEventListener("click", () => {
+    const plan = computeImportPlan();
+    if (!plan) return;
+    const addNew = document.getElementById("imp-add-new").checked;
+    const updateCost = document.getElementById("imp-update-cost").checked;
+    const zeroMissing = document.getElementById("imp-zero-missing").checked;
+
+    let categorized = 0;
+    plan.matched.forEach(m => {
+      m.item.qty = m.newQty;
+      if (updateCost && m.cost !== null) m.item.cost = m.cost;
+      if (m.salesPerDay !== null) m.item.salesPerDay = m.salesPerDay;
+      if (m.totalPhysicalQty !== null) m.item.totalPhysicalQty = m.totalPhysicalQty;
+      if (m.totalSellableQty !== null) m.item.totalSellableQty = m.totalSellableQty;
+      if (m.category){ m.item.category = m.category; categorized++; }
+    });
+    if (addNew){
+      plan.added.forEach(a => {
+        if (a.category) categorized++;
+        state.items.push({
+          id: uid("item"), sku: a.sku, name: a.name, category: a.category || "", uom:"",
+          qty: a.qty, cost: updateCost ? (a.cost || 0) : 0,
+          totalPhysicalQty: a.totalPhysicalQty ?? null, totalSellableQty: a.totalSellableQty ?? null,
+          reorderPoint:0, reorderQty:0, salesPerDay: a.salesPerDay || 0, vendorId:null, location:"",
+          notes:"Added from inventory import"
+        });
+      });
+    }
+    if (zeroMissing){
+      plan.missing.forEach(i => { i.qty = 0; });
+    }
+    state.meta = state.meta || {};
+    state.meta.lastImport = {
+      date: todayISO(),
+      fileName: importFileName || "pasted CSV",
+      sheetName: importSheetName || null,
+      matched: plan.matched.filter(m => m.newQty !== m.oldQty).length,
+      added: addNew ? plan.added.length : 0,
+      categorized
+    };
+    document.getElementById("dlg-import").close();
+    showToast(`Inventory synced from ${importSheetName ? `"${importSheetName}" in ` : ""}${importFileName}.`);
+    commit();
+  });
+
+  /* ============ boot ============ */
+  async function boot(){
+    renderAll();
+    await subscribeState();
+    renderAll();
+
+    // standing cleanup rules: remove items that violate an exclusion rule even if they made it
+    // in before the rule existed (or by any other route) — safe to run every load, no-op once
+    // clean. Each rule is retroactive so it never depends on re-running an import.
+    const beforeWholesale = state.items.length;
+    state.items = state.items.filter(i => !isWholesaleExcluded(i.name, i.sku));
+    const removedWholesale = beforeWholesale - state.items.length;
+
+    const beforeMailer = state.items.length;
+    state.items = state.items.filter(i => !isMailerExcluded(i.sku));
+    const removedMailer = beforeMailer - state.items.length;
+
+    const beforeBndl = state.items.length;
+    state.items = state.items.filter(i => !isBndlExcluded(i.name, i.sku));
+    const removedBndl = beforeBndl - state.items.length;
+
+    const beforeXRedo = state.items.length;
+    state.items = state.items.filter(i => !isXRedoExcluded(i.name, i.sku));
+    const removedXRedo = beforeXRedo - state.items.length;
+
+    const beforeMalformed = state.items.length;
+    state.items = state.items.filter(i => !isMalformedSku(i.sku));
+    const removedMalformed = beforeMalformed - state.items.length;
+
+    const beforeNumericSku = state.items.length;
+    state.items = state.items.filter(i => !isPurelyNumericSku(i.sku));
+    const removedNumericSku = beforeNumericSku - state.items.length;
+
+    const beforeManual = state.items.length;
+    state.items = state.items.filter(i => !isManuallyExcludedSku(i.sku));
+    const removedManual = beforeManual - state.items.length;
+
+    // "Retail" category was removed entirely (per explicit instruction) — items keep their
+    // qty/cost/etc, just lose that category tag rather than being deleted.
+    let clearedRetailCategory = 0;
+    state.items.forEach(i => {
+      if (String(i.category||"").trim() === "Retail"){ i.category = ""; clearedRetailCategory++; }
+    });
+
+    // Fill in category from the SKU pattern rules for any item that doesn't have a category
+    // yet — never overwrites a category that's already set (manually or from a prior import),
+    // only fills in the blanks, so it's safe to run on every load.
+    let taggedFromPattern = 0;
+    state.items.forEach(i => {
+      if (String(i.category||"").trim()) return;
+      const inferred = inferCategoryFromSku(i.sku);
+      if (inferred){ i.category = inferred; taggedFromPattern++; }
+    });
+
+    if (removedWholesale > 0){
+      showToast(`Removed ${removedWholesale} "[Wholesale]" item${removedWholesale===1?"":"s"} per your exclusion rule.`);
+    }
+    if (removedMailer > 0){
+      showToast(`Removed ${removedMailer} "-mailer" item${removedMailer===1?"":"s"} per your exclusion rule.`);
+    }
+    if (removedBndl > 0){
+      showToast(`Removed ${removedBndl} "bndl" item${removedBndl===1?"":"s"} per your exclusion rule.`);
+    }
+    if (removedXRedo > 0){
+      showToast(`Removed ${removedXRedo} "x-redo" item${removedXRedo===1?"":"s"} per your exclusion rule.`);
+    }
+    if (removedMalformed > 0){
+      showToast(`Removed ${removedMalformed} item${removedMalformed===1?"":"s"} with a space in the SKU — not real item codes.`);
+    }
+    if (removedNumericSku > 0){
+      showToast(`Removed ${removedNumericSku} item${removedNumericSku===1?"":"s"} with a purely numeric SKU — likely a quantity value, not a real item code.`);
+    }
+    if (removedManual > 0){
+      showToast(`Removed ${removedManual} item${removedManual===1?"":"s"} from your manual exclusion list.`);
+    }
+    if (clearedRetailCategory > 0){
+      showToast(`Cleared the "Retail" category from ${clearedRetailCategory} item${clearedRetailCategory===1?"":"s"} — that category was removed.`);
+    }
+    if (taggedFromPattern > 0){
+      showToast(`Tagged ${taggedFromPattern} item${taggedFromPattern===1?"":"s"} with a category based on their SKU.`);
+    }
+    if (removedWholesale > 0 || removedMailer > 0 || removedBndl > 0 || removedXRedo > 0 || removedMalformed > 0 || removedNumericSku > 0 || removedManual > 0 || clearedRetailCategory > 0 || taggedFromPattern > 0){
+      commit();
+    }
+  }
+
+  /* ============ auth gate ============ */
+  // Supabase's own login — replaces "sign into Claude" now that this is a standalone site.
+  // The client library persists the session in localStorage on its own, so returning visitors
+  // stay signed in without re-entering anything.
+  function showApp(){
+    document.getElementById("login-screen").hidden = true;
+    document.getElementById("app").hidden = false;
+    boot();
+  }
+  function showLogin(errorMsg){
+    document.getElementById("app").hidden = true;
+    document.getElementById("login-screen").hidden = false;
+    const errEl = document.getElementById("login-error");
+    if (errorMsg){ errEl.textContent = errorMsg; errEl.style.display = "block"; }
+    else { errEl.style.display = "none"; }
+  }
+  document.getElementById("form-login").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    const submitBtn = document.getElementById("login-submit");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Logging in…";
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Log in";
+    if (error){
+      showLogin(error.message || "Couldn't log in — check your email and password.");
+      return;
+    }
+    showApp();
+  });
+  document.getElementById("sign-out-btn").addEventListener("click", async () => {
+    if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+    await supabaseClient.auth.signOut();
+    location.reload();
+  });
+  (async () => {
+    const { data } = await supabaseClient.auth.getSession();
+    if (data && data.session) showApp();
+    else showLogin();
+  })();
+})();
+</script>
+</body>
+</html>
+
+</body></html>
