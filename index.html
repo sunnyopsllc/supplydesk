@@ -409,6 +409,7 @@
       <button data-view="inventory"><span class="ic">▤</span>Inventory<span class="count" id="nav-count-inventory">0</span></button>
       <button data-view="pos"><span class="ic">⇄</span>Purchase Orders<span class="count" id="nav-count-pos">0</span></button>
       <button data-view="vendors"><span class="ic">✎</span>Vendors<span class="count" id="nav-count-vendors">0</span></button>
+      <button data-view="planner"><span class="ic">◫</span>Event Planner</button>
     </nav>
     <div class="sidebar-foot">
       <div class="save-indicator" id="save-indicator"><span class="dot"></span><span class="txt" id="save-text">Loading…</span></div>
@@ -429,6 +430,7 @@
     <section class="view" id="view-inventory"></section>
     <section class="view" id="view-pos"></section>
     <section class="view" id="view-vendors"></section>
+    <section class="view" id="view-planner"></section>
   </main>
 </div>
 
@@ -1413,7 +1415,8 @@
     dashboard: { title:"Dashboard", sub:"Where things stand right now" },
     inventory: { title:"Inventory", sub:"Everything you keep on hand" },
     pos: { title:"Purchase Orders", sub:"What's on order and what's arrived" },
-    vendors: { title:"Vendors", sub:"Who you order from" }
+    vendors: { title:"Vendors", sub:"Who you order from" },
+    planner: { title:"Event Planner", sub:"What you can commit to an event without dipping into normal safety stock" }
   };
 
   function renderAll(){
@@ -1471,6 +1474,7 @@
     else if (currentView === "inventory") renderInventory();
     else if (currentView === "pos") renderPOs();
     else if (currentView === "vendors") renderVendors();
+    else if (currentView === "planner") renderPlanner();
   }
 
   /* ============ dashboard ============ */
@@ -1922,6 +1926,10 @@
 
   /* ============ vendors ============ */
   let vendorFilter = { q:"" };
+  // Event planner is a pure what-if calculator — never saved to app_state, always recomputed
+  // live from whatever's currently on hand / on order, so it's safe to poke at without
+  // affecting real inventory data.
+  let plannerState = { eventDate: "", reserveDays: 45, selected: new Set() };
   function renderVendors(){
     const root = document.getElementById("view-vendors");
     root.innerHTML = `
@@ -1965,6 +1973,138 @@
       </tbody>
     </table></div>`;
     wireRowActions(panel);
+  }
+
+  /* ============ event / build planner (what-if only — never persisted) ============ */
+  // A "-10" finished item qualifies if it has at least one -STK/-STKV3 component to kit from.
+  function plannerEligibleItems(){
+    return state.items.filter(i => /-10$/i.test(i.sku) && (findKitVariant(i.sku,"stk") || findKitVariant(i.sku,"stkv3")));
+  }
+  // Component supply "still coming" for an item, from open (sent/partial) POs whose expected
+  // date falls on or before the event date — unreceived remainder only, so anything already
+  // checked in is counted through the item's own on-hand qty instead (no double-counting).
+  function plannerIncomingQty(componentItem, eventDateISO){
+    if (!componentItem || !eventDateISO) return 0;
+    let total = 0;
+    for (const po of state.pos){
+      if (po.status !== "sent" && po.status !== "partial") continue;
+      if (!po.expected || po.expected > eventDateISO) continue;
+      for (const line of po.lines){
+        if (line.itemId !== componentItem.id) continue;
+        total += Math.max(0, (Number(line.qtyOrdered)||0) - (Number(line.qtyReceived)||0));
+      }
+    }
+    return total;
+  }
+  // The full breakdown for one finished SKU: how many packs are already built, how many more
+  // could be kitted from combined -STK/-STKV3 supply (on hand + incoming by the event date),
+  // and — after reserving enough to keep running normal sales for `reserveDays` — how many are
+  // genuinely free to commit to the event.
+  function plannerCompute(item, eventDateISO, reserveDays){
+    const stk = findKitVariant(item.sku, "stk");
+    const stkv3 = findKitVariant(item.sku, "stkv3");
+    const componentOnHand = (Number(stk?.qty)||0) + (Number(stkv3?.qty)||0);
+    const componentIncoming = plannerIncomingQty(stk, eventDateISO) + plannerIncomingQty(stkv3, eventDateISO);
+    const componentSupply = componentOnHand + componentIncoming;
+    const buildablePacks = Math.floor(componentSupply / KIT_COMPONENT_RATIO);
+    const finishedOnHand = Number(item.qty) || 0;
+    const totalPacksByEventDate = finishedOnHand + buildablePacks;
+    const reservePacks = Math.ceil((Number(item.salesPerDay)||0) * (Number(reserveDays)||0));
+    const availableForEvent = Math.max(0, totalPacksByEventDate - reservePacks);
+    return { item, stk, stkv3, componentOnHand, componentIncoming, componentSupply, buildablePacks, finishedOnHand, totalPacksByEventDate, reservePacks, availableForEvent };
+  }
+  function renderPlanner(){
+    const root = document.getElementById("view-planner");
+    const eligible = plannerEligibleItems().sort((a,b) => a.sku.localeCompare(b.sku));
+    root.innerHTML = `
+      <div class="panel">
+        <div class="panel-body" style="padding:16px 18px;">
+          <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;">Event build planner</div>
+          <p class="hint" style="max-width:70ch;">A what-if calculator — nothing here is saved. Combines what's on hand right now with anything still due in from placed purchase orders by your event date, then holds back enough to keep ${esc(String(plannerState.reserveDays))} days of normal stock so the event doesn't eat into everyday supply.</p>
+          <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;">
+            <div class="field" style="max-width:200px;">
+              <label for="planner-event-date">Event date</label>
+              <input type="date" id="planner-event-date" value="${esc(plannerState.eventDate)}">
+            </div>
+            <div class="field" style="max-width:200px;">
+              <label for="planner-reserve-days">Keep this many days of normal stock</label>
+              <input type="number" id="planner-reserve-days" min="0" step="1" value="${Number(plannerState.reserveDays)||0}">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Choose SKUs</h2><span class="cell-sub">${plannerState.selected.size} selected</span></div>
+        <div class="panel-body">
+          ${eligible.length === 0 ? `<div class="panel-empty">No "-10" items with a matching -STK/-STKV3 component yet.</div>` : `
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${eligible.map(i => `
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;border:1px solid var(--line);border-radius:20px;padding:6px 12px;cursor:pointer;">
+                <input type="checkbox" class="planner-pick" data-id="${i.id}" ${plannerState.selected.has(i.id)?"checked":""}>
+                ${esc(i.sku)}
+              </label>`).join("")}
+          </div>`}
+        </div>
+      </div>
+
+      <div class="panel" id="panel-planner-results"></div>
+    `;
+
+    document.getElementById("planner-event-date").oninput = e => { plannerState.eventDate = e.target.value; renderPlannerResults(); };
+    document.getElementById("planner-reserve-days").oninput = e => { plannerState.reserveDays = Math.max(0, Number(e.target.value)||0); renderPlannerResults(); };
+    root.querySelectorAll(".planner-pick").forEach(cb => {
+      cb.onchange = () => {
+        if (cb.checked) plannerState.selected.add(cb.dataset.id);
+        else plannerState.selected.delete(cb.dataset.id);
+        document.querySelector('#view-planner .panel-head .cell-sub').textContent = `${plannerState.selected.size} selected`;
+        renderPlannerResults();
+      };
+    });
+    renderPlannerResults();
+  }
+  function renderPlannerResults(){
+    const panel = document.getElementById("panel-planner-results");
+    if (!panel) return;
+    const selectedItems = state.items.filter(i => plannerState.selected.has(i.id));
+    if (selectedItems.length === 0){
+      panel.innerHTML = `<div class="panel-empty">Pick at least one SKU above to see what you can commit.</div>`;
+      return;
+    }
+    if (!plannerState.eventDate){
+      panel.innerHTML = `<div class="panel-empty">Set an event date above — incoming purchase orders only count if they're due by then.</div>`;
+      return;
+    }
+    const rows = selectedItems.map(i => plannerCompute(i, plannerState.eventDate, plannerState.reserveDays));
+    const grandTotal = rows.reduce((s,r) => s + r.availableForEvent, 0);
+    panel.innerHTML = `
+      <div class="panel-head"><h2>What you can commit by ${fmtDate(plannerState.eventDate + "T00:00:00")}</h2><span class="cell-sub">${grandTotal.toLocaleString("en-US")} packs total</span></div>
+      <div class="panel-body">
+        <div class="table-wrap"><table>
+          <thead><tr>
+            <th>SKU</th>
+            <th class="num">On hand now</th>
+            <th class="num">Component supply<br>(on hand + incoming)</th>
+            <th class="num">Buildable from that</th>
+            <th class="num">Total by event</th>
+            <th class="num">Keep in reserve</th>
+            <th class="num">Available for event</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td><div class="cell-primary">${esc(r.item.sku)}</div><div class="cell-sub">${esc(r.item.name)}</div></td>
+              <td class="num">${r.finishedOnHand.toLocaleString("en-US")}</td>
+              <td class="num">${r.componentSupply.toLocaleString("en-US")}${r.componentIncoming > 0 ? `<div class="cell-sub">${r.componentOnHand.toLocaleString("en-US")} on hand + ${r.componentIncoming.toLocaleString("en-US")} incoming</div>` : ""}</td>
+              <td class="num">${r.buildablePacks.toLocaleString("en-US")}</td>
+              <td class="num">${r.totalPacksByEventDate.toLocaleString("en-US")}</td>
+              <td class="num">${r.reservePacks.toLocaleString("en-US")}</td>
+              <td class="num" style="font-weight:600;color:var(--accent);">${r.availableForEvent.toLocaleString("en-US")}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table></div>
+        <div class="hint" style="padding:10px 18px 0;">"Component supply" combines -STK and -STKV3, since either can be kitted into this SKU — ${KIT_COMPONENT_RATIO} component units per finished pack. Incoming only counts purchase orders marked Sent/Partially received with an expected date on or before the event.</div>
+      </div>
+    `;
   }
 
   /* ============ row action delegation ============ */
