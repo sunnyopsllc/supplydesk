@@ -436,6 +436,7 @@
 
 <div id="toast-root"></div>
 <div id="ask-suggest" hidden style="position:fixed;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;box-shadow:var(--shadow);max-height:280px;overflow-y:auto;z-index:100;"></div>
+<div id="planner-suggest" hidden style="position:fixed;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;box-shadow:var(--shadow);max-height:280px;overflow-y:auto;z-index:100;"></div>
 
 <!-- Item dialog -->
 <dialog id="dlg-item" class="wide">
@@ -2066,12 +2067,10 @@
         <div class="panel-head"><h2>Choose input SKUs</h2><span class="cell-sub" id="planner-selected-count">${plannerState.selected.size} selected</span></div>
         <div class="panel-body">
           ${plannerEligibleItems().length === 0 ? `<div class="panel-empty">No -STK/-STKV3 items in inventory yet.</div>` : `
-          <div style="display:flex;flex-wrap:wrap;gap:8px;">
-            ${plannerEligibleItems().sort((a,b) => a.sku.localeCompare(b.sku)).map(i => `
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;border:1px solid var(--line);border-radius:20px;padding:6px 12px;cursor:pointer;">
-                <input type="checkbox" class="planner-pick" data-id="${i.id}" ${plannerState.selected.has(i.id)?"checked":""}>
-                ${esc(i.sku)}
-              </label>`).join("")}
+          <div id="planner-chosen-chips" style="display:flex;flex-wrap:wrap;gap:8px;${plannerState.selected.size ? "margin-bottom:12px;" : ""}"></div>
+          <div class="field" style="max-width:320px;">
+            <label for="planner-search">Search -STK / -STKV3 SKUs</label>
+            <input type="text" id="planner-search" autocomplete="off" placeholder="Start typing a SKU or name…">
           </div>`}
         </div>
       </div>
@@ -2084,15 +2083,97 @@
     document.getElementById("planner-output-qty").oninput = e => { plannerState.outputQty = Math.max(0, Number(e.target.value)||0); renderPlannerResults(); };
     document.getElementById("planner-event-date").oninput = e => { plannerState.eventDate = e.target.value; renderPlannerResults(); };
     document.getElementById("planner-reserve-days").oninput = e => { plannerState.reserveDays = Math.max(0, Number(e.target.value)||0); renderPlannerResults(); };
-    root.querySelectorAll(".planner-pick").forEach(cb => {
-      cb.onchange = () => {
-        if (cb.checked) plannerState.selected.add(cb.dataset.id);
-        else { plannerState.selected.delete(cb.dataset.id); delete plannerState.ratios[cb.dataset.id]; }
+    const plannerSearch = document.getElementById("planner-search");
+    if (plannerSearch){
+      plannerSearch.addEventListener("input", renderPlannerSuggest);
+      plannerSearch.addEventListener("focus", renderPlannerSuggest);
+      plannerSearch.addEventListener("blur", () => setTimeout(hidePlannerSuggest, 150));
+    }
+    renderPlannerChips();
+    renderPlannerRecipe();
+  }
+  // Type-to-filter dropdown for adding input SKUs — same body-level-box-tracks-the-input
+  // pattern as the Dashboard's "Ask about a SKU" autocomplete, so it's never clipped by a
+  // panel's rounded corners, but adds to the selection instead of navigating away.
+  function hidePlannerSuggest(){
+    const box = document.getElementById("planner-suggest");
+    box.hidden = true; box.innerHTML = "";
+    window.removeEventListener("scroll", positionPlannerSuggest, true);
+    window.removeEventListener("resize", positionPlannerSuggest);
+  }
+  function positionPlannerSuggest(){
+    const input = document.getElementById("planner-search");
+    const box = document.getElementById("planner-suggest");
+    if (!input || !box) return;
+    const r = input.getBoundingClientRect();
+    box.style.top = `${r.bottom + 4}px`;
+    box.style.left = `${r.left}px`;
+    box.style.width = `${r.width}px`;
+  }
+  function renderPlannerSuggest(){
+    const input = document.getElementById("planner-search");
+    const box = document.getElementById("planner-suggest");
+    if (!input || !box) return;
+    const q = input.value.trim().toLowerCase();
+    const scored = plannerEligibleItems()
+      .filter(i => !plannerState.selected.has(i.id))
+      .map(i => {
+        const sku = i.sku.toLowerCase(), name = (i.name||"").toLowerCase();
+        let rank;
+        if (!q) rank = 0;
+        else if (sku.startsWith(q) || name.startsWith(q)) rank = 0;
+        else if (sku.includes(q) || name.includes(q)) rank = 1;
+        else rank = -1;
+        return { item:i, rank };
+      })
+      .filter(x => x.rank >= 0)
+      .sort((a,b) => a.rank - b.rank || a.item.sku.localeCompare(b.item.sku))
+      .slice(0, q ? 8 : 20);
+    if (scored.length === 0){ hidePlannerSuggest(); return; }
+    box.innerHTML = scored.map(({item:i}) => `
+      <div class="planner-suggest-row" data-id="${i.id}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13.5px;">
+        <div class="cell-primary">${esc(i.sku)}</div><div class="cell-sub">${esc(i.name)}</div>
+      </div>`).join("");
+    box.hidden = false;
+    positionPlannerSuggest();
+    window.addEventListener("scroll", positionPlannerSuggest, true);
+    window.addEventListener("resize", positionPlannerSuggest);
+    box.querySelectorAll(".planner-suggest-row").forEach(row => {
+      row.addEventListener("mouseenter", () => { row.style.background = "var(--surface-2)"; });
+      row.addEventListener("mouseleave", () => { row.style.background = ""; });
+      // mousedown (not click) fires before the input's blur, so the dropdown doesn't
+      // vanish out from under the click.
+      row.addEventListener("mousedown", e => {
+        e.preventDefault();
+        plannerState.selected.add(row.dataset.id);
+        hidePlannerSuggest();
+        const searchInput = document.getElementById("planner-search");
+        if (searchInput) searchInput.value = "";
+        const countEl = document.getElementById("planner-selected-count");
+        if (countEl) countEl.textContent = `${plannerState.selected.size} selected`;
+        renderPlannerChips();
+        renderPlannerRecipe();
+      });
+    });
+  }
+  function renderPlannerChips(){
+    const box = document.getElementById("planner-chosen-chips");
+    if (!box) return;
+    const items = state.items.filter(i => plannerState.selected.has(i.id)).sort((a,b) => a.sku.localeCompare(b.sku));
+    box.innerHTML = items.map(i => `
+      <span style="display:inline-flex;align-items:center;gap:2px;font-size:13px;background:var(--accent-soft);color:var(--accent-ink);border-radius:20px;padding:6px 8px 6px 12px;">
+        ${esc(i.sku)}
+        <button type="button" class="planner-chip-remove" data-id="${i.id}" title="Remove" style="border:none;background:none;cursor:pointer;color:inherit;font-size:14px;line-height:1;padding:2px 4px;">✕</button>
+      </span>`).join("");
+    box.querySelectorAll(".planner-chip-remove").forEach(btn => {
+      btn.onclick = () => {
+        plannerState.selected.delete(btn.dataset.id);
+        delete plannerState.ratios[btn.dataset.id];
         document.getElementById("planner-selected-count").textContent = `${plannerState.selected.size} selected`;
+        renderPlannerChips();
         renderPlannerRecipe();
       };
     });
-    renderPlannerRecipe();
   }
   // Redrawn only when the selected-inputs set changes (checkbox toggled) — not on every
   // keystroke — so typing a ratio doesn't fight the field for focus.
