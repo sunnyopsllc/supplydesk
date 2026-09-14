@@ -1930,7 +1930,15 @@
   // Event planner is a pure what-if calculator — never saved to app_state, always recomputed
   // live from whatever's currently on hand / on order, so it's safe to poke at without
   // affecting real inventory data.
-  let plannerState = { eventDate: "", reserveDays: 45, outputName: "", outputQty: 0, selected: new Set(), ratios: {} };
+  // `builds` is a stack — each output can compete for the same -STK/-STKV3 supply as the ones
+  // before it, and earlier builds get first claim (see plannerAllocationPool in the planner
+  // section below).
+  let plannerState = { eventDate: "", reserveDays: 45, builds: [] };
+  let plannerBuildSeq = 0;
+  function newPlannerBuild(){
+    plannerBuildSeq += 1;
+    return { id: "build-" + plannerBuildSeq, outputName: "", outputQty: 0, selected: new Set(), ratios: {} };
+  }
   function renderVendors(){
     const root = document.getElementById("view-vendors");
     root.innerHTML = `
@@ -2006,22 +2014,16 @@
     if (!base) return null;
     return state.items.find(x => x.sku.toLowerCase() === `${base}-10`) || null;
   }
-  // One input SKU's breakdown against a custom recipe ratio (qty of this input needed to make
-  // 1 unit of the NEW output) and a target output quantity.
-  //
-  // The reserve is a separate, standing concern from that custom recipe — it protects the
-  // correlating "-10" SKU's own everyday kitting, using the real fixed 10-components-per-pack
-  // ratio and that "-10" item's own sale/day: reserve (packs) = ceil(sale/day × reserveDays),
-  // reserve (component units) = that × 10. Combined -STK + -STKV3 on-hand (regardless of which
-  // one this row is) is also surfaced here so you can see, at a glance, how many "-10" packs
-  // current stock alone could still build against that 45-day need.
-  function plannerComputeInput(item, ratio, eventDateISO, reserveDays, outputQty){
+  // Everything about one input SKU that's independent of any particular output/build: its raw
+  // supply, and the 45-day reserve that protects the correlating "-10" SKU's everyday kitting
+  // (existing finished stock credited first, real fixed 10:1 ratio, that item's own sale/day —
+  // never the component's own, which components don't carry). Shared across every build in the
+  // stack, computed once per input per render pass.
+  function plannerComputeBase(item, eventDateISO, reserveDays){
     const onHand = Number(item.qty) || 0;
     const incoming = plannerIncomingQty(item, eventDateISO);
     const supply = onHand + incoming;
 
-    // Existing finished "-10" stock already covers some of the 45-day need on its own — only
-    // the shortfall beyond that needs to be held back in raw components.
     const tenItem = correlatingTenItem(item);
     const tenOnHand = tenItem ? Number(tenItem.qty)||0 : 0;
     const reserveTenPacksTotal = tenItem ? Math.ceil((Number(tenItem.salesPerDay)||0) * (Number(reserveDays)||0)) : 0;
@@ -2034,28 +2036,18 @@
     const combinedOnHand = (Number(stkVariant?.qty)||0) + (Number(stkv3Variant?.qty)||0);
     const combinedBuildableTenPacks = Math.floor(combinedOnHand / KIT_COMPONENT_RATIO);
 
-    const surplus = Math.max(0, supply - reserve);
-    const requiredForTarget = ratio > 0 ? ratio * (Number(outputQty)||0) : 0;
-    const shortfall = Math.max(0, requiredForTarget - surplus);
-    const maxOutputFromThis = ratio > 0 ? Math.floor(surplus / ratio) : null;
-    return { item, ratio, onHand, incoming, supply, tenItem, tenOnHand, reserveTenPacksTotal, reserveTenPacksCoveredByStock, reserveTenPacks, reserve, combinedOnHand, combinedBuildableTenPacks, surplus, requiredForTarget, shortfall, maxOutputFromThis };
+    const baseSurplus = Math.max(0, supply - reserve);
+    return { item, onHand, incoming, supply, tenItem, tenOnHand, reserveTenPacksTotal, reserveTenPacksCoveredByStock, reserveTenPacks, reserve, combinedOnHand, combinedBuildableTenPacks, baseSurplus };
   }
   function renderPlanner(){
     const root = document.getElementById("view-planner");
+    if (plannerState.builds.length === 0) plannerState.builds.push(newPlannerBuild());
     root.innerHTML = `
       <div class="panel">
         <div class="panel-body" style="padding:16px 18px;">
           <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;">Event build planner</div>
-          <p class="hint" style="max-width:70ch;">A what-if calculator — nothing here is saved. Define what you're building and its recipe below; it checks your -STK/-STKV3 supply (on hand plus anything due in from placed purchase orders by your event date) against that target, after holding back enough of each input to keep building at a normal pace for the number of days you set.</p>
+          <p class="hint" style="max-width:70ch;">A what-if calculator — nothing here is saved. Stack as many outputs as you need: each one below competes for the same -STK/-STKV3 supply as the ones above it, so adding a second output shows what's actually left over after the first one's needs are already spoken for — not the same pool double-counted.</p>
           <div class="field-grid" style="margin-top:12px;">
-            <div class="field">
-              <label for="planner-output-name">Output</label>
-              <input id="planner-output-name" placeholder="e.g. BG-CAF-PCH-LMAD-10" value="${esc(plannerState.outputName)}">
-            </div>
-            <div class="field">
-              <label for="planner-output-qty">Quantity of output needed</label>
-              <input type="number" id="planner-output-qty" min="0" step="1" value="${plannerState.outputQty || ""}">
-            </div>
             <div class="field">
               <label for="planner-event-date">Event date</label>
               <input type="date" id="planner-event-date" value="${esc(plannerState.eventDate)}">
@@ -2068,46 +2060,101 @@
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-head"><h2>Choose input SKUs</h2><span class="cell-sub" id="planner-selected-count">${plannerState.selected.size} selected</span></div>
-        <div class="panel-body">
-          ${plannerEligibleItems().length === 0 ? `<div class="panel-empty">No -STK/-STKV3 items in inventory yet.</div>` : `
-          <div id="planner-chosen-chips" style="display:flex;flex-wrap:wrap;gap:8px;${plannerState.selected.size ? "margin-bottom:12px;" : ""}"></div>
-          <div class="field" style="max-width:320px;">
-            <label for="planner-search">Search -STK / -STKV3 SKUs</label>
-            <input type="text" id="planner-search" autocomplete="off" placeholder="Start typing a SKU or name…">
-          </div>`}
-        </div>
-      </div>
-
-      <div id="panel-planner-recipe"></div>
-      <div class="panel" id="panel-planner-results"></div>
+      <div id="planner-builds"></div>
+      <button type="button" class="btn" id="planner-add-build" style="margin-bottom:32px;">+ Add another output</button>
     `;
 
-    document.getElementById("planner-output-name").oninput = e => { plannerState.outputName = e.target.value; renderPlannerResults(); };
-    document.getElementById("planner-output-qty").oninput = e => { plannerState.outputQty = Math.max(0, Number(e.target.value)||0); renderPlannerResults(); };
-    document.getElementById("planner-event-date").oninput = e => { plannerState.eventDate = e.target.value; renderPlannerResults(); };
-    document.getElementById("planner-reserve-days").oninput = e => { plannerState.reserveDays = Math.max(0, Number(e.target.value)||0); renderPlannerResults(); };
-    const plannerSearch = document.getElementById("planner-search");
-    if (plannerSearch){
-      plannerSearch.addEventListener("input", renderPlannerSuggest);
-      plannerSearch.addEventListener("focus", renderPlannerSuggest);
-      plannerSearch.addEventListener("blur", () => setTimeout(hidePlannerSuggest, 150));
-    }
-    renderPlannerChips();
-    renderPlannerRecipe();
+    document.getElementById("planner-event-date").oninput = e => { plannerState.eventDate = e.target.value; renderAllPlannerResults(); };
+    document.getElementById("planner-reserve-days").oninput = e => { plannerState.reserveDays = Math.max(0, Number(e.target.value)||0); renderAllPlannerResults(); };
+    document.getElementById("planner-add-build").onclick = () => {
+      plannerState.builds.push(newPlannerBuild());
+      renderPlannerBuilds();
+    };
+    renderPlannerBuilds();
   }
-  // Type-to-filter dropdown for adding input SKUs — same body-level-box-tracks-the-input
-  // pattern as the Dashboard's "Ask about a SKU" autocomplete, so it's never clipped by a
-  // panel's rounded corners, but adds to the selection instead of navigating away.
+  // Redraws every build's own panel (name/qty, chips, recipe) plus a fresh results pass —
+  // called when the stack itself changes (a build added/removed, or its input SKUs change).
+  function renderPlannerBuilds(){
+    const container = document.getElementById("planner-builds");
+    if (!container) return;
+    container.innerHTML = plannerState.builds.map((b, idx) => `
+      <div class="panel" data-build-id="${b.id}" style="margin-bottom:8px;">
+        <div class="panel-head">
+          <h2>Output ${idx + 1}${b.outputName.trim() ? " — " + esc(b.outputName.trim()) : ""}</h2>
+          ${plannerState.builds.length > 1 ? `<button type="button" class="btn btn-sm btn-quiet planner-remove-build" data-build-id="${b.id}">Remove</button>` : ""}
+        </div>
+        <div class="panel-body">
+          <div class="field-grid">
+            <div class="field">
+              <label>Name this output</label>
+              <input class="planner-output-name" data-build-id="${b.id}" placeholder="e.g. Holiday Variety Box" value="${esc(b.outputName)}">
+            </div>
+            <div class="field">
+              <label>Quantity of output needed</label>
+              <input type="number" class="planner-output-qty" data-build-id="${b.id}" min="0" step="1" value="${b.outputQty || ""}">
+            </div>
+          </div>
+          <div style="margin-top:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <div style="font-size:12px;font-weight:600;color:var(--ink-muted);">Input SKUs</div>
+              <span class="cell-sub planner-selected-count" data-build-id="${b.id}">${b.selected.size} selected</span>
+            </div>
+            ${plannerEligibleItems().length === 0 ? `<div class="panel-empty">No -STK/-STKV3 items in inventory yet.</div>` : `
+            <div class="planner-chosen-chips" data-build-id="${b.id}" style="display:flex;flex-wrap:wrap;gap:8px;${b.selected.size ? "margin-bottom:12px;" : ""}"></div>
+            <div class="field" style="max-width:320px;">
+              <label>Search -STK / -STKV3 SKUs</label>
+              <input type="text" class="planner-search" data-build-id="${b.id}" autocomplete="off" placeholder="Start typing a SKU or name…">
+            </div>`}
+          </div>
+          <div class="planner-recipe" data-build-id="${b.id}" style="margin-top:14px;"></div>
+        </div>
+      </div>
+      <div class="panel planner-results" data-build-id="${b.id}" style="margin-bottom:24px;"></div>
+    `).join("");
+
+    container.querySelectorAll(".planner-remove-build").forEach(btn => {
+      btn.onclick = () => {
+        plannerState.builds = plannerState.builds.filter(b => b.id !== btn.dataset.buildId);
+        renderPlannerBuilds();
+      };
+    });
+    container.querySelectorAll(".planner-output-name").forEach(inp => {
+      inp.oninput = () => {
+        const b = plannerState.builds.find(x => x.id === inp.dataset.buildId);
+        if (b) b.outputName = inp.value;
+        renderAllPlannerResults();
+      };
+    });
+    container.querySelectorAll(".planner-output-qty").forEach(inp => {
+      inp.oninput = () => {
+        const b = plannerState.builds.find(x => x.id === inp.dataset.buildId);
+        if (b) b.outputQty = Math.max(0, Number(inp.value)||0);
+        renderAllPlannerResults();
+      };
+    });
+    container.querySelectorAll(".planner-search").forEach(inp => {
+      inp.addEventListener("input", () => renderPlannerSuggest(inp.dataset.buildId));
+      inp.addEventListener("focus", () => renderPlannerSuggest(inp.dataset.buildId));
+      inp.addEventListener("blur", () => setTimeout(hidePlannerSuggest, 150));
+    });
+    plannerState.builds.forEach(b => renderPlannerChips(b.id));
+    plannerState.builds.forEach(b => renderPlannerRecipe(b.id));
+  }
+  // Type-to-filter dropdown for adding input SKUs to one specific build — same
+  // body-level-box-tracks-the-input pattern as the Dashboard's "Ask about a SKU" autocomplete,
+  // so it's never clipped by a panel's rounded corners, but adds to that build's selection
+  // instead of navigating away. Only one dropdown is open at a time.
+  let plannerSuggestBuildId = null;
   function hidePlannerSuggest(){
     const box = document.getElementById("planner-suggest");
     box.hidden = true; box.innerHTML = "";
+    plannerSuggestBuildId = null;
     window.removeEventListener("scroll", positionPlannerSuggest, true);
     window.removeEventListener("resize", positionPlannerSuggest);
   }
   function positionPlannerSuggest(){
-    const input = document.getElementById("planner-search");
+    if (!plannerSuggestBuildId) return;
+    const input = document.querySelector(`.planner-search[data-build-id="${plannerSuggestBuildId}"]`);
     const box = document.getElementById("planner-suggest");
     if (!input || !box) return;
     const r = input.getBoundingClientRect();
@@ -2115,13 +2162,15 @@
     box.style.left = `${r.left}px`;
     box.style.width = `${r.width}px`;
   }
-  function renderPlannerSuggest(){
-    const input = document.getElementById("planner-search");
+  function renderPlannerSuggest(buildId){
+    const build = plannerState.builds.find(b => b.id === buildId);
+    const input = document.querySelector(`.planner-search[data-build-id="${buildId}"]`);
     const box = document.getElementById("planner-suggest");
-    if (!input || !box) return;
+    if (!build || !input || !box) return;
+    plannerSuggestBuildId = buildId;
     const q = input.value.trim().toLowerCase();
     const scored = plannerEligibleItems()
-      .filter(i => !plannerState.selected.has(i.id))
+      .filter(i => !build.selected.has(i.id))
       .map(i => {
         const sku = i.sku.toLowerCase(), name = (i.name||"").toLowerCase();
         let rank;
@@ -2151,74 +2200,88 @@
       // vanish out from under the click.
       row.addEventListener("mousedown", e => {
         e.preventDefault();
-        plannerState.selected.add(row.dataset.id);
+        build.selected.add(row.dataset.id);
         hidePlannerSuggest();
-        const searchInput = document.getElementById("planner-search");
+        const searchInput = document.querySelector(`.planner-search[data-build-id="${buildId}"]`);
         if (searchInput) searchInput.value = "";
-        const countEl = document.getElementById("planner-selected-count");
-        if (countEl) countEl.textContent = `${plannerState.selected.size} selected`;
-        renderPlannerChips();
-        renderPlannerRecipe();
+        const countEl = document.querySelector(`.planner-selected-count[data-build-id="${buildId}"]`);
+        if (countEl) countEl.textContent = `${build.selected.size} selected`;
+        renderPlannerChips(buildId);
+        renderPlannerRecipe(buildId);
       });
     });
   }
-  function renderPlannerChips(){
-    const box = document.getElementById("planner-chosen-chips");
-    if (!box) return;
-    const items = state.items.filter(i => plannerState.selected.has(i.id)).sort((a,b) => a.sku.localeCompare(b.sku));
+  function renderPlannerChips(buildId){
+    const build = plannerState.builds.find(b => b.id === buildId);
+    const box = document.querySelector(`.planner-chosen-chips[data-build-id="${buildId}"]`);
+    if (!build || !box) return;
+    const items = state.items.filter(i => build.selected.has(i.id)).sort((a,b) => a.sku.localeCompare(b.sku));
     box.innerHTML = items.map(i => `
       <span style="display:inline-flex;align-items:center;gap:2px;font-size:13px;background:var(--accent-soft);color:var(--accent-ink);border-radius:20px;padding:6px 8px 6px 12px;">
         ${esc(i.sku)}
-        <button type="button" class="planner-chip-remove" data-id="${i.id}" title="Remove" style="border:none;background:none;cursor:pointer;color:inherit;font-size:14px;line-height:1;padding:2px 4px;">✕</button>
+        <button type="button" class="planner-chip-remove" data-id="${i.id}" data-build-id="${buildId}" title="Remove" style="border:none;background:none;cursor:pointer;color:inherit;font-size:14px;line-height:1;padding:2px 4px;">✕</button>
       </span>`).join("");
     box.querySelectorAll(".planner-chip-remove").forEach(btn => {
       btn.onclick = () => {
-        plannerState.selected.delete(btn.dataset.id);
-        delete plannerState.ratios[btn.dataset.id];
-        document.getElementById("planner-selected-count").textContent = `${plannerState.selected.size} selected`;
-        renderPlannerChips();
-        renderPlannerRecipe();
+        build.selected.delete(btn.dataset.id);
+        delete build.ratios[btn.dataset.id];
+        const countEl = document.querySelector(`.planner-selected-count[data-build-id="${buildId}"]`);
+        if (countEl) countEl.textContent = `${build.selected.size} selected`;
+        renderPlannerChips(buildId);
+        renderPlannerRecipe(buildId);
       };
     });
   }
-  // Redrawn only when the selected-inputs set changes (checkbox toggled) — not on every
-  // keystroke — so typing a ratio doesn't fight the field for focus.
-  function renderPlannerRecipe(){
-    const panel = document.getElementById("panel-planner-recipe");
-    if (!panel) return;
-    const selectedItems = state.items.filter(i => plannerState.selected.has(i.id));
+  // Redrawn only when a build's selected-inputs set changes — not on every keystroke — so
+  // typing a ratio doesn't fight the field for focus.
+  function renderPlannerRecipe(buildId){
+    const build = plannerState.builds.find(b => b.id === buildId);
+    const panel = document.querySelector(`.planner-recipe[data-build-id="${buildId}"]`);
+    if (!build || !panel) return;
+    const selectedItems = state.items.filter(i => build.selected.has(i.id));
     if (selectedItems.length === 0){
       panel.innerHTML = "";
-      renderPlannerResults();
+      renderAllPlannerResults();
       return;
     }
     panel.innerHTML = `
-      <div class="panel">
-        <div class="panel-head"><h2>Recipe</h2><span class="cell-sub">qty of each input needed per 1 unit of output</span></div>
-        <div class="panel-body">
-          <div class="table-wrap"><table>
-            <thead><tr><th>Input SKU</th><th class="num">On hand</th><th class="num">Qty needed per output unit</th></tr></thead>
-            <tbody>
-              ${selectedItems.map(i => `<tr>
-                <td><div class="cell-primary">${esc(i.sku)}</div><div class="cell-sub">${esc(i.name)}</div></td>
-                <td class="num">${(Number(i.qty)||0).toLocaleString("en-US")}</td>
-                <td class="num"><input type="number" class="planner-ratio" data-id="${i.id}" min="0" step="any" style="width:100px;text-align:right;" value="${plannerState.ratios[i.id] ?? ""}"></td>
-              </tr>`).join("")}
-            </tbody>
-          </table></div>
-        </div>
-      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:8px;">Recipe — qty of each input needed per 1 unit of output</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Input SKU</th><th class="num">On hand</th><th class="num">Qty needed per output unit</th></tr></thead>
+        <tbody>
+          ${selectedItems.map(i => `<tr>
+            <td><div class="cell-primary">${esc(i.sku)}</div><div class="cell-sub">${esc(i.name)}</div></td>
+            <td class="num">${(Number(i.qty)||0).toLocaleString("en-US")}</td>
+            <td class="num"><input type="number" class="planner-ratio" data-id="${i.id}" min="0" step="any" style="width:100px;text-align:right;" value="${build.ratios[i.id] ?? ""}"></td>
+          </tr>`).join("")}
+        </tbody>
+      </table></div>
     `;
     panel.querySelectorAll(".planner-ratio").forEach(inp => {
-      inp.oninput = () => { plannerState.ratios[inp.dataset.id] = Math.max(0, Number(inp.value)||0); renderPlannerResults(); };
+      inp.oninput = () => { build.ratios[inp.dataset.id] = Math.max(0, Number(inp.value)||0); renderAllPlannerResults(); };
     });
-    renderPlannerResults();
+    renderAllPlannerResults();
   }
-  // Redrawn on every keystroke in the controls or a ratio field — touches only this one panel.
-  function renderPlannerResults(){
-    const panel = document.getElementById("panel-planner-results");
+  // Runs the whole stack in order, letting each build claim from a shared pool (starting at
+  // each input's base surplus) before the next build gets a turn — then renders every build's
+  // results panel. Redrawn on every keystroke anywhere in the controls/recipe fields; touches
+  // only the .planner-results panels, never the inputs themselves, so nothing loses focus.
+  function renderAllPlannerResults(){
+    const baseCache = {};
+    const pool = {};
+    function getBase(item){
+      if (!baseCache[item.id]){
+        baseCache[item.id] = plannerComputeBase(item, plannerState.eventDate, plannerState.reserveDays);
+        pool[item.id] = baseCache[item.id].baseSurplus;
+      }
+      return baseCache[item.id];
+    }
+    plannerState.builds.forEach((build, idx) => renderPlannerBuildResults(build, idx, getBase, pool));
+  }
+  function renderPlannerBuildResults(build, idx, getBase, pool){
+    const panel = document.querySelector(`.planner-results[data-build-id="${build.id}"]`);
     if (!panel) return;
-    const selectedItems = state.items.filter(i => plannerState.selected.has(i.id));
+    const selectedItems = state.items.filter(i => build.selected.has(i.id));
     if (selectedItems.length === 0){
       panel.innerHTML = `<div class="panel-empty">Pick at least one -STK/-STKV3 SKU above to build a recipe.</div>`;
       return;
@@ -2227,12 +2290,28 @@
       panel.innerHTML = `<div class="panel-empty">Set an event date above — incoming purchase orders only count if they're due by then.</div>`;
       return;
     }
-    const rows = selectedItems.map(i => plannerComputeInput(i, plannerState.ratios[i.id] || 0, plannerState.eventDate, plannerState.reserveDays, plannerState.outputQty));
+
+    const rows = selectedItems.map(item => {
+      const base = getBase(item);
+      const ratio = build.ratios[item.id] || 0;
+      const availableBefore = pool[item.id];
+      const requiredForTarget = ratio > 0 ? ratio * (Number(build.outputQty)||0) : 0;
+      const shortfall = Math.max(0, requiredForTarget - availableBefore);
+      const maxOutputFromThis = ratio > 0 ? Math.floor(availableBefore / ratio) : null;
+      const claimedByEarlier = base.baseSurplus - availableBefore;
+      return { item, base, ratio, availableBefore, requiredForTarget, shortfall, maxOutputFromThis, claimedByEarlier };
+    });
+    // This build's actual claim (capped at what's available) comes off the shared pool so the
+    // *next* build in the stack sees what's genuinely left.
+    rows.forEach(r => {
+      if (r.ratio > 0) pool[r.item.id] -= Math.min(r.requiredForTarget, pool[r.item.id]);
+    });
+
     const withRatio = rows.filter(r => r.ratio > 0);
-    const outputLabel = plannerState.outputName.trim() || "output";
+    const outputLabel = build.outputName.trim() || `Output ${idx + 1}`;
     const maxBuildable = withRatio.length ? Math.min(...withRatio.map(r => r.maxOutputFromThis)) : null;
     const bottleneck = withRatio.length ? withRatio.reduce((a,b) => a.maxOutputFromThis <= b.maxOutputFromThis ? a : b) : null;
-    const target = Number(plannerState.outputQty) || 0;
+    const target = Number(build.outputQty) || 0;
     const meetsTarget = target > 0 && withRatio.length > 0 && withRatio.every(r => r.shortfall === 0);
 
     panel.innerHTML = `
@@ -2248,20 +2327,20 @@
             <th>Input SKU</th>
             <th class="num">Supply<br>(on hand + incoming)</th>
             <th class="num">Reserve<br>(${esc(String(plannerState.reserveDays))}-day normal use)</th>
-            <th class="num">Surplus</th>
+            <th class="num">Available to this output</th>
             <th class="num">Needed for target</th>
             <th class="num">Shortfall</th>
           </tr></thead>
           <tbody>
             ${rows.map(r => `<tr>
               <td><div class="cell-primary">${esc(r.item.sku)}</div>${r.ratio <= 0 ? `<div class="cell-sub">no ratio entered — excluded from feasibility</div>` : ""}</td>
-              <td class="num">${r.supply.toLocaleString("en-US")}${r.incoming > 0 ? `<div class="cell-sub">${r.onHand.toLocaleString("en-US")} on hand + ${r.incoming.toLocaleString("en-US")} incoming</div>` : ""}</td>
-              <td class="num">${r.reserve.toLocaleString("en-US")}${r.tenItem ? `
-                <div class="cell-sub">${r.reserveTenPacksTotal.toLocaleString("en-US")} packs needed (${esc(r.tenItem.sku)} @ ${(Number(r.tenItem.salesPerDay)||0).toLocaleString("en-US")}/day)</div>
-                <div class="cell-sub">− ${r.reserveTenPacksCoveredByStock.toLocaleString("en-US")} already covered by ${r.tenOnHand.toLocaleString("en-US")} -10 on hand</div>
-                <div class="cell-sub">= ${r.reserveTenPacks.toLocaleString("en-US")} packs to hold back in components</div>` : `<div class="cell-sub">no correlating -10 SKU found</div>`}
-                <div class="cell-sub">Combined -STK+-STKV3 on hand builds ${r.combinedBuildableTenPacks.toLocaleString("en-US")} packs (${r.combinedOnHand.toLocaleString("en-US")} units)</div></td>
-              <td class="num">${r.surplus.toLocaleString("en-US")}</td>
+              <td class="num">${r.base.supply.toLocaleString("en-US")}${r.base.incoming > 0 ? `<div class="cell-sub">${r.base.onHand.toLocaleString("en-US")} on hand + ${r.base.incoming.toLocaleString("en-US")} incoming</div>` : ""}</td>
+              <td class="num">${r.base.reserve.toLocaleString("en-US")}${r.base.tenItem ? `
+                <div class="cell-sub">${r.base.reserveTenPacksTotal.toLocaleString("en-US")} packs needed (${esc(r.base.tenItem.sku)} @ ${(Number(r.base.tenItem.salesPerDay)||0).toLocaleString("en-US")}/day)</div>
+                <div class="cell-sub">− ${r.base.reserveTenPacksCoveredByStock.toLocaleString("en-US")} already covered by ${r.base.tenOnHand.toLocaleString("en-US")} -10 on hand</div>
+                <div class="cell-sub">= ${r.base.reserveTenPacks.toLocaleString("en-US")} packs to hold back in components</div>` : `<div class="cell-sub">no correlating -10 SKU found</div>`}
+                <div class="cell-sub">Combined -STK+-STKV3 on hand builds ${r.base.combinedBuildableTenPacks.toLocaleString("en-US")} packs (${r.base.combinedOnHand.toLocaleString("en-US")} units)</div></td>
+              <td class="num">${r.availableBefore.toLocaleString("en-US")}${r.claimedByEarlier > 0 ? `<div class="cell-sub">− ${r.claimedByEarlier.toLocaleString("en-US")} already claimed by earlier output${r.claimedByEarlier===1?"":"s"}</div>` : ""}</td>
               <td class="num">${r.ratio > 0 ? r.requiredForTarget.toLocaleString("en-US") : "—"}</td>
               <td class="num" style="${r.shortfall>0?"color:var(--critical);font-weight:600;":""}">${r.ratio > 0 ? (r.shortfall > 0 ? r.shortfall.toLocaleString("en-US") : "OK") : "—"}</td>
             </tr>`).join("")}
