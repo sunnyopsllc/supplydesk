@@ -601,6 +601,11 @@
       <button type="button" class="close" data-close>✕</button>
     </div>
     <div class="dlg-body">
+      <div class="stat-row" id="po-stat-tiles" style="display:none;margin-bottom:14px;">
+        <div class="stat-tile"><div class="label">Ordered</div><div class="value mono" id="po-stat-ordered">0</div></div>
+        <div class="stat-tile"><div class="label">Received</div><div class="value mono" id="po-stat-received">0</div></div>
+        <div class="stat-tile"><div class="label">Outstanding</div><div class="value mono" id="po-stat-outstanding">0</div></div>
+      </div>
       <div class="kv" id="po-kv" style="display:none;"></div>
       <div class="field-grid">
         <div class="field" id="f-povendor">
@@ -814,6 +819,30 @@
   </form>
 </dialog>
 
+<!-- Receive against open PO(s) dialog -->
+<dialog id="dlg-receive-po">
+  <form id="form-receive-po">
+    <div class="dlg-head">
+      <div>
+        <h2>Receive inventory</h2>
+        <div class="sub" id="recv-sub" style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;"></div>
+      </div>
+      <button type="button" class="close" data-close>✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="field">
+        <label for="recv-qty">Qty received now</label>
+        <input id="recv-qty" type="number" min="1" step="1" required>
+      </div>
+      <div class="hint" style="margin-top:8px;">Applied automatically to the oldest open purchase order(s) for this SKU, oldest first — no need to know which PO it's against. Goes to on-hand either way.</div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn btn-primary">Receive</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Confirm dialog -->
 <dialog id="dlg-confirm">
   <div class="dlg-head"><h2 id="confirm-title">Are you sure?</h2><button type="button" class="close" data-close>✕</button></div>
@@ -967,6 +996,52 @@
   function poTotal(po){ return po.lines.reduce((s,l) => s + (Number(l.qtyOrdered)||0) * (Number(l.cost)||0), 0); }
   function poReceivedTotal(po){ return po.lines.reduce((s,l) => s + (Number(l.qtyReceived)||0), 0); }
   function poOrderedTotal(po){ return po.lines.reduce((s,l) => s + (Number(l.qtyOrdered)||0), 0); }
+  // Total outstanding balance the manufacturer/vendor still owes for this item — ordered minus
+  // received, summed across every open (sent/partial) PO line referencing it. Draft, cancelled,
+  // and fully-received POs don't count: a draft hasn't actually been placed, and the other two
+  // have nothing left outstanding.
+  function itemOnPoQty(itemId){
+    let total = 0;
+    for (const po of state.pos){
+      if (po.status !== "sent" && po.status !== "partial") continue;
+      for (const line of po.lines){
+        if (line.itemId !== itemId) continue;
+        total += Math.max(0, (Number(line.qtyOrdered)||0) - (Number(line.qtyReceived)||0));
+      }
+    }
+    return total;
+  }
+  // Records a shipment against a SKU without needing to know which PO number it belongs to —
+  // applies it to the oldest open PO(s) for that item first (FIFO), the way stock actually
+  // arrives against orders placed over time. Always adds the full amount to on-hand; whatever
+  // doesn't match an open PO line is called out separately as "overage" (e.g. an extra freebie
+  // unit, or something ordered outside Supply Desk).
+  function receiveAgainstOpenPos(itemId, qtyReceivedNow){
+    const item = itemById(itemId);
+    const qty = Number(qtyReceivedNow) || 0;
+    if (!item || qty <= 0) return { applied: 0, overage: 0 };
+    let remaining = qty;
+    const openPos = state.pos
+      .filter(po => po.status === "sent" || po.status === "partial")
+      .sort((a,b) => (a.created||"").localeCompare(b.created||""));
+    for (const po of openPos){
+      if (remaining <= 0) break;
+      let touched = false;
+      for (const line of po.lines){
+        if (remaining <= 0) break;
+        if (line.itemId !== itemId) continue;
+        const lineRemaining = Math.max(0, (Number(line.qtyOrdered)||0) - (Number(line.qtyReceived)||0));
+        if (lineRemaining <= 0) continue;
+        const take = Math.min(lineRemaining, remaining);
+        line.qtyReceived = (Number(line.qtyReceived)||0) + take;
+        remaining -= take;
+        touched = true;
+      }
+      if (touched) recomputePoStatus(po);
+    }
+    item.qty = (Number(item.qty)||0) + qty;
+    return { applied: qty - remaining, overage: remaining };
+  }
 
   function stockStatus(it){
     const qty = Number(it.qty)||0, rp = Number(it.reorderPoint)||0;
@@ -1097,6 +1172,32 @@
     if (!item) return;
     openCreateWorkOrderDialog(item.sku, suggestedQty || suggestedWorkOrderQty(item), addDaysISO(todayISO(), Number(item.leadTimeDays) || 10));
   }
+
+  /* ============ receive against open PO(s), by SKU ============ */
+  let receivePoItemId = null;
+  function openReceivePoDialog(itemId){
+    const item = itemById(itemId);
+    if (!item) return;
+    receivePoItemId = itemId;
+    const onPo = itemOnPoQty(itemId);
+    document.getElementById("form-receive-po").reset();
+    document.getElementById("recv-sub").textContent = `${item.sku} — ${onPo.toLocaleString("en-US")} currently on PO`;
+    document.getElementById("recv-qty").value = onPo || "";
+    document.getElementById("dlg-receive-po").showModal();
+  }
+  document.getElementById("form-receive-po").addEventListener("submit", e => {
+    e.preventDefault();
+    const item = itemById(receivePoItemId);
+    if (!item) return;
+    const qty = Number(document.getElementById("recv-qty").value);
+    if (!qty || qty <= 0){ showToast("Enter a quantity greater than 0.", true); return; }
+    const { applied, overage } = receiveAgainstOpenPos(receivePoItemId, qty);
+    document.getElementById("dlg-receive-po").close();
+    showToast(overage > 0
+      ? `Received ${qty.toLocaleString("en-US")} of ${item.sku} — ${applied.toLocaleString("en-US")} applied to open PO(s), ${overage.toLocaleString("en-US")} had no matching PO.`
+      : `Received ${qty.toLocaleString("en-US")} of ${item.sku} — applied to open PO(s). On hand now ${Number(item.qty).toLocaleString("en-US")}.`);
+    commit();
+  });
   document.getElementById("form-create-wo").addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!cwoSku) return;
@@ -1834,7 +1935,7 @@
       return Math.max(0, Math.ceil(TOPUP_TARGET_DAYS * spd - (Number(i.qty)||0)));
     };
     panel.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Item</th><th class="num">On hand</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
+      <thead><tr><th>Item</th><th class="num">On hand</th><th class="num">On PO</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
       <tbody>
         ${rows.map(i => {
           const v = vendorById(i.vendorId);
@@ -1849,6 +1950,7 @@
           return `<tr>
             <td data-act="edit-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}${i.uom?` · ${esc(i.uom)}`:''}</div>${openWorkOrderPill(i)}</td>
             <td class="num">${Number(i.qty)||0}</td>
+            <td class="num">${itemOnPoQty(i.id) > 0 ? itemOnPoQty(i.id).toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
             ${stkCols}
             ${showStkCols ? "" : `<td class="num">${Number(i.reorderPoint)||0}</td>`}
             <td><span class="pill pill-${st.key}">${st.label}</span></td>
@@ -1858,6 +1960,7 @@
             <td>${v ? esc(v.name) : '<span class="cell-sub">—</span>'}</td>
             <td class="num">${fmtMoney(i.cost)}</td>
             <td class="actions">
+              ${itemOnPoQty(i.id) > 0 ? `<button class="btn btn-sm" data-act="receive-po" data-id="${i.id}">Receive</button>` : ""}
               ${quickActionButton(i)}
               <button class="btn btn-sm" data-act="edit-item" data-id="${i.id}">Edit</button>
             </td>
@@ -2382,6 +2485,7 @@
     root.querySelectorAll('[data-act="quick-po"]').forEach(el => el.onclick = () => quickCreatePo(el.dataset.id));
     root.querySelectorAll('[data-act="quick-kit"]').forEach(el => el.onclick = () => quickCreateKit(el.dataset.id));
     root.querySelectorAll('[data-act="create-wo"]').forEach(el => el.onclick = () => openCreateWorkOrderDialogForItem(el.dataset.id, Number(el.dataset.qty) || 0));
+    root.querySelectorAll('[data-act="receive-po"]').forEach(el => el.onclick = () => openReceivePoDialog(el.dataset.id));
   }
   // "-10" items are replenished by kitting, not by ordering — swap the action in for those.
   function quickActionButton(item){
@@ -2682,6 +2786,22 @@
         <td><input type="number" class="recv-qty" min="0" max="${remaining}" step="1" value="0" data-remaining="${remaining}"></td>
       </tr>`;
     }).join("");
+    body.querySelectorAll(".recv-qty").forEach(inp => inp.addEventListener("input", () => updatePoStatTiles(po)));
+  }
+  // Ordered / Received / Outstanding, counting whatever's typed into "Receive now" but not
+  // yet saved — so the tiles reflect what you're about to record, not just what's already on
+  // file.
+  function updatePoStatTiles(po){
+    if (!po) return;
+    const ordered = poOrderedTotal(po);
+    const receivedSoFar = poReceivedTotal(po);
+    let pending = 0;
+    document.querySelectorAll("#po-receive-body .recv-qty").forEach(inp => {
+      pending += Math.max(0, Math.min(Number(inp.value)||0, Number(inp.dataset.remaining)||0));
+    });
+    document.getElementById("po-stat-ordered").textContent = ordered.toLocaleString("en-US");
+    document.getElementById("po-stat-received").textContent = (receivedSoFar + pending).toLocaleString("en-US");
+    document.getElementById("po-stat-outstanding").textContent = Math.max(0, ordered - receivedSoFar - pending).toLocaleString("en-US");
   }
 
   function openPoDialog(id, prefill){
@@ -2694,6 +2814,7 @@
     const vendorSelect = document.getElementById("in-po-vendor");
     vendorSelect.innerHTML = state.vendors.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
     document.getElementById("po-kv").style.display = "none";
+    document.getElementById("po-stat-tiles").style.display = "none";
     document.getElementById("po-status-actions").innerHTML = "";
 
     if (editingPoId){
@@ -2712,6 +2833,8 @@
         <div><div class="k">Order total</div><div class="v">${fmtMoney(poTotal(po))}</div></div>
         ${po.receivedDate ? `<div><div class="k">Received</div><div class="v">${fmtDate(po.receivedDate)}</div></div>` : ""}
       `;
+      document.getElementById("po-stat-tiles").style.display = "flex";
+      updatePoStatTiles(po);
       renderReceiveSection(po);
 
       const statusActions = document.getElementById("po-status-actions");
