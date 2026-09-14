@@ -1072,24 +1072,34 @@
     d.setDate(d.getDate() + (Number(days) || 0));
     return d.toISOString().slice(0,10);
   }
-  let cwoItemId = null;
-  function openCreateWorkOrderDialog(itemId, suggestedQty){
-    const item = itemById(itemId);
-    if (!item) return;
-    cwoItemId = itemId;
+  // Generic entry point — takes a plain SKU string rather than an existing item id, since a
+  // work order can now be triggered either from an inventory row (a real, tracked item) or
+  // from the Event Planner (an output that may not be in Supply Desk's own catalog at all,
+  // only in Deposco's kit registry). If the SKU doesn't match a Deposco kit exactly (it looks
+  // for "<sku> - V3"), Deposco itself will reject it — the dialog surfaces that error as-is.
+  let cwoSku = null;
+  function openCreateWorkOrderDialog(sku, qty, dueDateISO){
+    if (!sku) return;
+    cwoSku = sku;
     const dlg = document.getElementById("dlg-create-wo");
     const form = document.getElementById("form-create-wo");
     form.reset();
-    document.getElementById("cwo-sku-display").value = item.sku;
-    document.getElementById("cwo-qty").value = suggestedQty || suggestedWorkOrderQty(item);
-    document.getElementById("cwo-due").value = addDaysISO(todayISO(), Number(item.leadTimeDays) || 10);
-    document.getElementById("cwo-kit-name").textContent = `${item.sku} - V3`;
+    document.getElementById("cwo-sku-display").value = sku;
+    document.getElementById("cwo-qty").value = qty || 1;
+    document.getElementById("cwo-due").value = dueDateISO || addDaysISO(todayISO(), 10);
+    document.getElementById("cwo-kit-name").textContent = `${sku} - V3`;
     dlg.showModal();
+  }
+  // Convenience wrapper for the Inventory/Running-low case — an existing tracked item, whose
+  // suggested due date comes from its own lead time.
+  function openCreateWorkOrderDialogForItem(itemId, suggestedQty){
+    const item = itemById(itemId);
+    if (!item) return;
+    openCreateWorkOrderDialog(item.sku, suggestedQty || suggestedWorkOrderQty(item), addDaysISO(todayISO(), Number(item.leadTimeDays) || 10));
   }
   document.getElementById("form-create-wo").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const item = itemById(cwoItemId);
-    if (!item) return;
+    if (!cwoSku) return;
     const qty = Number(document.getElementById("cwo-qty").value);
     const dueDateInput = document.getElementById("cwo-due").value;
     if (!qty || qty <= 0){ showToast("Enter a quantity greater than 0.", true); return; }
@@ -1101,14 +1111,14 @@
     try {
       const { data, error } = await supabaseClient.functions.invoke("create-work-order", {
         method: "POST",
-        body: { sku: item.sku, qty, dueDate: `${dueDateInput}T00:00:00-05:00` },
+        body: { sku: cwoSku, qty, dueDate: `${dueDateInput}T00:00:00-05:00` },
       });
       if (error) throw error;
       if (data && data.ok === false) throw new Error(data.error || "Deposco rejected the request");
       document.getElementById("dlg-create-wo").close();
       showToast(`Created work order ${data.number} in Deposco — ${data.qty} units due ${fmtDate(data.dueDate)}.`);
-      // The function already wrote the openWorkOrder pill onto this item server-side;
-      // the realtime subscription picks that up and re-renders on its own.
+      // If this SKU matches a tracked item, the function already wrote the openWorkOrder pill
+      // onto it server-side; the realtime subscription picks that up and re-renders on its own.
     } catch (err) {
       showToast("Couldn't create work order: " + ((err && err.message) ? err.message : "unknown error"), true);
     } finally {
@@ -2314,6 +2324,7 @@
     const target = Number(build.outputQty) || 0;
     const meetsTarget = target > 0 && withRatio.length > 0 && withRatio.every(r => r.shortfall === 0);
 
+    const canSubmit = meetsTarget && build.outputName.trim();
     panel.innerHTML = `
       <div class="panel-head"><h2>Feasibility for ${esc(outputLabel)}</h2>${target > 0 ? `<span class="pill ${meetsTarget ? "pill-ok" : "pill-critical"}">${meetsTarget ? "Target met" : "Short"}</span>` : ""}</div>
       <div class="panel-body">
@@ -2322,6 +2333,11 @@
           <div><div class="k">Max ${esc(outputLabel)} buildable</div><div class="v" style="font-weight:600;">${maxBuildable.toLocaleString("en-US")} units${bottleneck ? ` <span class="cell-sub">(limited by ${esc(bottleneck.item.sku)})</span>` : ""}</div></div>
           ${target > 0 ? `<div><div class="k">Target of ${target.toLocaleString("en-US")}</div><div class="v" style="${meetsTarget?"color:var(--ok);":"color:var(--critical);"}font-weight:600;">${meetsTarget ? "Achievable" : `Short by ${(target - maxBuildable).toLocaleString("en-US")}`}</div></div>` : ""}
         </div>
+        ${meetsTarget ? (canSubmit ? `
+        <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-primary planner-submit-wo">Submit Work Order →</button>
+          <span class="hint">Creates a real work order in Deposco for "${esc(outputLabel)}" — the name above must match an existing Deposco kit exactly, or it'll be rejected there. You'll review the details before anything sends.</span>
+        </div>` : `<p class="hint" style="margin:14px 0 4px;">Name this output above to enable submitting a work order for it.</p>`) : ""}
         <div class="table-wrap"><table>
           <thead><tr>
             <th>Input SKU</th>
@@ -2348,6 +2364,10 @@
         </table></div>`}
       </div>
     `;
+    const submitBtn = panel.querySelector(".planner-submit-wo");
+    if (submitBtn){
+      submitBtn.onclick = () => openCreateWorkOrderDialog(outputLabel, target, plannerState.eventDate);
+    }
   }
 
   /* ============ row action delegation ============ */
@@ -2361,7 +2381,7 @@
     root.querySelectorAll('[data-act="open-po"]').forEach(el => el.onclick = () => openPoDialog(el.dataset.id));
     root.querySelectorAll('[data-act="quick-po"]').forEach(el => el.onclick = () => quickCreatePo(el.dataset.id));
     root.querySelectorAll('[data-act="quick-kit"]').forEach(el => el.onclick = () => quickCreateKit(el.dataset.id));
-    root.querySelectorAll('[data-act="create-wo"]').forEach(el => el.onclick = () => openCreateWorkOrderDialog(el.dataset.id, Number(el.dataset.qty) || 0));
+    root.querySelectorAll('[data-act="create-wo"]').forEach(el => el.onclick = () => openCreateWorkOrderDialogForItem(el.dataset.id, Number(el.dataset.qty) || 0));
   }
   // "-10" items are replenished by kitting, not by ordering — swap the action in for those.
   function quickActionButton(item){
