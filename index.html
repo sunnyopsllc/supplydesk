@@ -412,6 +412,7 @@
     </nav>
     <div class="sidebar-foot">
       <div class="save-indicator" id="save-indicator"><span class="dot"></span><span class="txt" id="save-text">Loading…</span></div>
+      <button type="button" class="btn btn-sm btn-quiet" id="sync-wo-btn" style="justify-content:flex-start;padding-left:0;">⟳ Sync work orders</button>
       <button type="button" class="btn btn-sm btn-quiet" id="sign-out-btn" style="justify-content:flex-start;padding-left:0;">Sign out</button>
     </div>
   </aside>
@@ -3394,6 +3395,26 @@
       return;
     }
     showApp();
+  });
+  document.getElementById("sync-wo-btn").addEventListener("click", async () => {
+    const btn = document.getElementById("sync-wo-btn");
+    if (btn.disabled) return;
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Syncing…";
+    try {
+      const { data, error } = await supabaseClient.functions.invoke("sync-work-orders", { method: "POST" });
+      if (error) throw error;
+      if (data && data.ok === false) throw new Error(data.error || "Sync failed");
+      // The realtime subscription picks up the resulting app_state write
+      // automatically — no manual reload needed here.
+      showToast(`Synced ${data.openWorkOrders} open work order${data.openWorkOrders === 1 ? "" : "s"} — ${data.itemsUpdated} updated, ${data.itemsCleared} cleared.`);
+    } catch (e) {
+      showToast("Couldn't sync work orders: " + ((e && e.message) ? e.message : "unknown error"), true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
   });
   document.getElementById("sign-out-btn").addEventListener("click", async () => {
     if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
