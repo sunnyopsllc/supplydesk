@@ -3015,6 +3015,13 @@
       };
       state.pos.push(po);
     }
+    // Keep each item's own standing cost in sync with what was actually paid on this PO, so
+    // the next purchase order for the same SKU starts from the latest real price instead of
+    // a stale one entered (or guessed) earlier.
+    validLines.forEach(l => {
+      const it = itemById(l.itemId);
+      if (it && Number(l.cost) > 0) it.cost = Number(l.cost);
+    });
     document.getElementById("dlg-po").close();
     commit();
   });
