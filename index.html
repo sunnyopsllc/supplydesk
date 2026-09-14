@@ -1929,7 +1929,7 @@
   // Event planner is a pure what-if calculator — never saved to app_state, always recomputed
   // live from whatever's currently on hand / on order, so it's safe to poke at without
   // affecting real inventory data.
-  let plannerState = { eventDate: "", reserveDays: 45, selected: new Set() };
+  let plannerState = { eventDate: "", reserveDays: 45, outputName: "", outputQty: 0, selected: new Set(), ratios: {} };
   function renderVendors(){
     const root = document.getElementById("view-vendors");
     root.innerHTML = `
@@ -1976,59 +1976,63 @@
   }
 
   /* ============ event / build planner (what-if only — never persisted) ============ */
-  // A "-10" finished item qualifies if it has at least one -STK/-STKV3 component to kit from.
+  // Inputs you can pick from are raw components — -STK/-STKV3 — not finished "-10" goods,
+  // since those are what actually gets built fresh for an event.
   function plannerEligibleItems(){
-    return state.items.filter(i => /-10$/i.test(i.sku) && (findKitVariant(i.sku,"stk") || findKitVariant(i.sku,"stkv3")));
+    return state.items.filter(i => /-(stk|stkv3)$/i.test(i.sku));
   }
-  // Component supply "still coming" for an item, from open (sent/partial) POs whose expected
-  // date falls on or before the event date — unreceived remainder only, so anything already
-  // checked in is counted through the item's own on-hand qty instead (no double-counting).
-  function plannerIncomingQty(componentItem, eventDateISO){
-    if (!componentItem || !eventDateISO) return 0;
+  // Supply "still coming" for an item, from open (sent/partial) POs whose expected date falls
+  // on or before the event date — unreceived remainder only, so anything already checked in is
+  // counted through the item's own on-hand qty instead (no double-counting).
+  function plannerIncomingQty(item, eventDateISO){
+    if (!item || !eventDateISO) return 0;
     let total = 0;
     for (const po of state.pos){
       if (po.status !== "sent" && po.status !== "partial") continue;
       if (!po.expected || po.expected > eventDateISO) continue;
       for (const line of po.lines){
-        if (line.itemId !== componentItem.id) continue;
+        if (line.itemId !== item.id) continue;
         total += Math.max(0, (Number(line.qtyOrdered)||0) - (Number(line.qtyReceived)||0));
       }
     }
     return total;
   }
-  // The full breakdown for one finished SKU. Event stock is built fresh from combined
-  // -STK/-STKV3 component supply (on hand + incoming by the event date) — already-finished
-  // "-10" on-hand stock is left alone entirely, since that's what covers normal day-to-day
-  // sales and isn't part of the event plan. The 45-day reserve is likewise held back in
-  // component units (enough -STK/-STKV3 to keep kitting at the normal pace for that many
-  // days), not compared against the finished on-hand figure.
-  function plannerCompute(item, eventDateISO, reserveDays){
-    const stk = findKitVariant(item.sku, "stk");
-    const stkv3 = findKitVariant(item.sku, "stkv3");
-    const componentOnHand = (Number(stk?.qty)||0) + (Number(stkv3?.qty)||0);
-    const componentIncoming = plannerIncomingQty(stk, eventDateISO) + plannerIncomingQty(stkv3, eventDateISO);
-    const componentSupply = componentOnHand + componentIncoming;
-    const reservePacks = Math.ceil((Number(item.salesPerDay)||0) * (Number(reserveDays)||0));
-    const reserveComponentUnits = reservePacks * KIT_COMPONENT_RATIO;
-    const componentSurplus = Math.max(0, componentSupply - reserveComponentUnits);
-    const availableForEvent = Math.floor(componentSurplus / KIT_COMPONENT_RATIO);
-    const finishedOnHand = Number(item.qty) || 0;
-    return { item, stk, stkv3, componentOnHand, componentIncoming, componentSupply, reservePacks, reserveComponentUnits, componentSurplus, availableForEvent, finishedOnHand };
+  // One input SKU's breakdown against a custom recipe ratio (qty of this input needed to make
+  // 1 unit of output) and a target output quantity. The reserve is this input's own normal
+  // depletion (its own salesPerDay, if tracked) over `reserveDays` — held back before anything
+  // is counted as free to build the event with.
+  function plannerComputeInput(item, ratio, eventDateISO, reserveDays, outputQty){
+    const onHand = Number(item.qty) || 0;
+    const incoming = plannerIncomingQty(item, eventDateISO);
+    const supply = onHand + incoming;
+    const reserve = Math.ceil((Number(item.salesPerDay)||0) * (Number(reserveDays)||0));
+    const surplus = Math.max(0, supply - reserve);
+    const requiredForTarget = ratio > 0 ? ratio * (Number(outputQty)||0) : 0;
+    const shortfall = Math.max(0, requiredForTarget - surplus);
+    const maxOutputFromThis = ratio > 0 ? Math.floor(surplus / ratio) : null;
+    return { item, ratio, onHand, incoming, supply, reserve, surplus, requiredForTarget, shortfall, maxOutputFromThis };
   }
   function renderPlanner(){
     const root = document.getElementById("view-planner");
-    const eligible = plannerEligibleItems().sort((a,b) => a.sku.localeCompare(b.sku));
     root.innerHTML = `
       <div class="panel">
         <div class="panel-body" style="padding:16px 18px;">
           <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;">Event build planner</div>
-          <p class="hint" style="max-width:70ch;">A what-if calculator — nothing here is saved. Figures how much you could kit fresh from -STK/-STKV3 stock (on hand plus anything due in from placed purchase orders by your event date), after holding back enough of that same stock to keep building at a normal pace for ${esc(String(plannerState.reserveDays))} more days. Existing "-10" on-hand stock isn't touched — that stays for everyday sales.</p>
-          <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;">
-            <div class="field" style="max-width:200px;">
+          <p class="hint" style="max-width:70ch;">A what-if calculator — nothing here is saved. Define what you're building and its recipe below; it checks your -STK/-STKV3 supply (on hand plus anything due in from placed purchase orders by your event date) against that target, after holding back enough of each input to keep building at a normal pace for the number of days you set.</p>
+          <div class="field-grid" style="margin-top:12px;">
+            <div class="field">
+              <label for="planner-output-name">Output</label>
+              <input id="planner-output-name" placeholder="e.g. BG-CAF-PCH-LMAD-10" value="${esc(plannerState.outputName)}">
+            </div>
+            <div class="field">
+              <label for="planner-output-qty">Quantity of output needed</label>
+              <input type="number" id="planner-output-qty" min="0" step="1" value="${plannerState.outputQty || ""}">
+            </div>
+            <div class="field">
               <label for="planner-event-date">Event date</label>
               <input type="date" id="planner-event-date" value="${esc(plannerState.eventDate)}">
             </div>
-            <div class="field" style="max-width:200px;">
+            <div class="field">
               <label for="planner-reserve-days">Keep this many days of normal stock</label>
               <input type="number" id="planner-reserve-days" min="0" step="1" value="${Number(plannerState.reserveDays)||0}">
             </div>
@@ -2037,11 +2041,11 @@
       </div>
 
       <div class="panel">
-        <div class="panel-head"><h2>Choose SKUs</h2><span class="cell-sub">${plannerState.selected.size} selected</span></div>
+        <div class="panel-head"><h2>Choose input SKUs</h2><span class="cell-sub" id="planner-selected-count">${plannerState.selected.size} selected</span></div>
         <div class="panel-body">
-          ${eligible.length === 0 ? `<div class="panel-empty">No "-10" items with a matching -STK/-STKV3 component yet.</div>` : `
+          ${plannerEligibleItems().length === 0 ? `<div class="panel-empty">No -STK/-STKV3 items in inventory yet.</div>` : `
           <div style="display:flex;flex-wrap:wrap;gap:8px;">
-            ${eligible.map(i => `
+            ${plannerEligibleItems().sort((a,b) => a.sku.localeCompare(b.sku)).map(i => `
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;border:1px solid var(--line);border-radius:20px;padding:6px 12px;cursor:pointer;">
                 <input type="checkbox" class="planner-pick" data-id="${i.id}" ${plannerState.selected.has(i.id)?"checked":""}>
                 ${esc(i.sku)}
@@ -2050,59 +2054,106 @@
         </div>
       </div>
 
+      <div id="panel-planner-recipe"></div>
       <div class="panel" id="panel-planner-results"></div>
     `;
 
+    document.getElementById("planner-output-name").oninput = e => { plannerState.outputName = e.target.value; renderPlannerResults(); };
+    document.getElementById("planner-output-qty").oninput = e => { plannerState.outputQty = Math.max(0, Number(e.target.value)||0); renderPlannerResults(); };
     document.getElementById("planner-event-date").oninput = e => { plannerState.eventDate = e.target.value; renderPlannerResults(); };
     document.getElementById("planner-reserve-days").oninput = e => { plannerState.reserveDays = Math.max(0, Number(e.target.value)||0); renderPlannerResults(); };
     root.querySelectorAll(".planner-pick").forEach(cb => {
       cb.onchange = () => {
         if (cb.checked) plannerState.selected.add(cb.dataset.id);
-        else plannerState.selected.delete(cb.dataset.id);
-        document.querySelector('#view-planner .panel-head .cell-sub').textContent = `${plannerState.selected.size} selected`;
-        renderPlannerResults();
+        else { plannerState.selected.delete(cb.dataset.id); delete plannerState.ratios[cb.dataset.id]; }
+        document.getElementById("planner-selected-count").textContent = `${plannerState.selected.size} selected`;
+        renderPlannerRecipe();
       };
+    });
+    renderPlannerRecipe();
+  }
+  // Redrawn only when the selected-inputs set changes (checkbox toggled) — not on every
+  // keystroke — so typing a ratio doesn't fight the field for focus.
+  function renderPlannerRecipe(){
+    const panel = document.getElementById("panel-planner-recipe");
+    if (!panel) return;
+    const selectedItems = state.items.filter(i => plannerState.selected.has(i.id));
+    if (selectedItems.length === 0){
+      panel.innerHTML = "";
+      renderPlannerResults();
+      return;
+    }
+    panel.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h2>Recipe</h2><span class="cell-sub">qty of each input needed per 1 unit of output</span></div>
+        <div class="panel-body">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Input SKU</th><th class="num">On hand</th><th class="num">Qty needed per output unit</th></tr></thead>
+            <tbody>
+              ${selectedItems.map(i => `<tr>
+                <td><div class="cell-primary">${esc(i.sku)}</div><div class="cell-sub">${esc(i.name)}</div></td>
+                <td class="num">${(Number(i.qty)||0).toLocaleString("en-US")}</td>
+                <td class="num"><input type="number" class="planner-ratio" data-id="${i.id}" min="0" step="any" style="width:100px;text-align:right;" value="${plannerState.ratios[i.id] ?? ""}"></td>
+              </tr>`).join("")}
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+    `;
+    panel.querySelectorAll(".planner-ratio").forEach(inp => {
+      inp.oninput = () => { plannerState.ratios[inp.dataset.id] = Math.max(0, Number(inp.value)||0); renderPlannerResults(); };
     });
     renderPlannerResults();
   }
+  // Redrawn on every keystroke in the controls or a ratio field — touches only this one panel.
   function renderPlannerResults(){
     const panel = document.getElementById("panel-planner-results");
     if (!panel) return;
     const selectedItems = state.items.filter(i => plannerState.selected.has(i.id));
     if (selectedItems.length === 0){
-      panel.innerHTML = `<div class="panel-empty">Pick at least one SKU above to see what you can commit.</div>`;
+      panel.innerHTML = `<div class="panel-empty">Pick at least one -STK/-STKV3 SKU above to build a recipe.</div>`;
       return;
     }
     if (!plannerState.eventDate){
       panel.innerHTML = `<div class="panel-empty">Set an event date above — incoming purchase orders only count if they're due by then.</div>`;
       return;
     }
-    const rows = selectedItems.map(i => plannerCompute(i, plannerState.eventDate, plannerState.reserveDays));
-    const grandTotal = rows.reduce((s,r) => s + r.availableForEvent, 0);
+    const rows = selectedItems.map(i => plannerComputeInput(i, plannerState.ratios[i.id] || 0, plannerState.eventDate, plannerState.reserveDays, plannerState.outputQty));
+    const withRatio = rows.filter(r => r.ratio > 0);
+    const outputLabel = plannerState.outputName.trim() || "output";
+    const maxBuildable = withRatio.length ? Math.min(...withRatio.map(r => r.maxOutputFromThis)) : null;
+    const bottleneck = withRatio.length ? withRatio.reduce((a,b) => a.maxOutputFromThis <= b.maxOutputFromThis ? a : b) : null;
+    const target = Number(plannerState.outputQty) || 0;
+    const meetsTarget = target > 0 && withRatio.length > 0 && withRatio.every(r => r.shortfall === 0);
+
     panel.innerHTML = `
-      <div class="panel-head"><h2>What you can commit by ${fmtDate(plannerState.eventDate + "T00:00:00")}</h2><span class="cell-sub">${grandTotal.toLocaleString("en-US")} packs total</span></div>
+      <div class="panel-head"><h2>Feasibility for ${esc(outputLabel)}</h2>${target > 0 ? `<span class="pill ${meetsTarget ? "pill-ok" : "pill-critical"}">${meetsTarget ? "Target met" : "Short"}</span>` : ""}</div>
       <div class="panel-body">
+        ${withRatio.length === 0 ? `<div class="panel-empty">Enter a "qty needed per output unit" above for at least one input to see feasibility.</div>` : `
+        <div class="kv" style="margin-bottom:2px;">
+          <div><div class="k">Max ${esc(outputLabel)} buildable</div><div class="v" style="font-weight:600;">${maxBuildable.toLocaleString("en-US")} units${bottleneck ? ` <span class="cell-sub">(limited by ${esc(bottleneck.item.sku)})</span>` : ""}</div></div>
+          ${target > 0 ? `<div><div class="k">Target of ${target.toLocaleString("en-US")}</div><div class="v" style="${meetsTarget?"color:var(--ok);":"color:var(--critical);"}font-weight:600;">${meetsTarget ? "Achievable" : `Short by ${(target - maxBuildable).toLocaleString("en-US")}`}</div></div>` : ""}
+        </div>
         <div class="table-wrap"><table>
           <thead><tr>
-            <th>SKU</th>
-            <th class="num">-10 on hand<br><span style="font-weight:400;">(not used for event)</span></th>
-            <th class="num">-STK/-STKV3 supply<br>(on hand + incoming)</th>
+            <th>Input SKU</th>
+            <th class="num">Supply<br>(on hand + incoming)</th>
             <th class="num">Reserve<br>(${esc(String(plannerState.reserveDays))}-day normal use)</th>
-            <th class="num">Surplus to build with</th>
-            <th class="num">Available for event</th>
+            <th class="num">Surplus</th>
+            <th class="num">Needed for target</th>
+            <th class="num">Shortfall</th>
           </tr></thead>
           <tbody>
             ${rows.map(r => `<tr>
-              <td><div class="cell-primary">${esc(r.item.sku)}</div><div class="cell-sub">${esc(r.item.name)}</div></td>
-              <td class="num">${r.finishedOnHand.toLocaleString("en-US")}</td>
-              <td class="num">${r.componentSupply.toLocaleString("en-US")}${r.componentIncoming > 0 ? `<div class="cell-sub">${r.componentOnHand.toLocaleString("en-US")} on hand + ${r.componentIncoming.toLocaleString("en-US")} incoming</div>` : ""}</td>
-              <td class="num">${r.reserveComponentUnits.toLocaleString("en-US")}<div class="cell-sub">${r.reservePacks.toLocaleString("en-US")} packs' worth</div></td>
-              <td class="num">${r.componentSurplus.toLocaleString("en-US")}</td>
-              <td class="num" style="font-weight:600;color:var(--accent);">${r.availableForEvent.toLocaleString("en-US")}</td>
+              <td><div class="cell-primary">${esc(r.item.sku)}</div>${r.ratio <= 0 ? `<div class="cell-sub">no ratio entered — excluded from feasibility</div>` : ""}</td>
+              <td class="num">${r.supply.toLocaleString("en-US")}${r.incoming > 0 ? `<div class="cell-sub">${r.onHand.toLocaleString("en-US")} on hand + ${r.incoming.toLocaleString("en-US")} incoming</div>` : ""}</td>
+              <td class="num">${r.reserve.toLocaleString("en-US")}</td>
+              <td class="num">${r.surplus.toLocaleString("en-US")}</td>
+              <td class="num">${r.ratio > 0 ? r.requiredForTarget.toLocaleString("en-US") : "—"}</td>
+              <td class="num" style="${r.shortfall>0?"color:var(--critical);font-weight:600;":""}">${r.ratio > 0 ? (r.shortfall > 0 ? r.shortfall.toLocaleString("en-US") : "OK") : "—"}</td>
             </tr>`).join("")}
           </tbody>
-        </table></div>
-        <div class="hint" style="padding:10px 18px 0;">Event stock is built fresh from -STK/-STKV3 (${KIT_COMPONENT_RATIO} component units per finished pack) — existing "-10" on-hand stock is left alone for normal sales, shown here for reference only. Incoming only counts purchase orders marked Sent/Partially received with an expected date on or before the event.</div>
+        </table></div>`}
       </div>
     `;
   }
