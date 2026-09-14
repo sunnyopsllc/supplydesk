@@ -2131,8 +2131,9 @@
       .slice(0, q ? 8 : 20);
     if (scored.length === 0){ hidePlannerSuggest(); return; }
     box.innerHTML = scored.map(({item:i}) => `
-      <div class="planner-suggest-row" data-id="${i.id}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13.5px;">
-        <div class="cell-primary">${esc(i.sku)}</div><div class="cell-sub">${esc(i.name)}</div>
+      <div class="planner-suggest-row" data-id="${i.id}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13.5px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;">
+        <div style="min-width:0;"><div class="cell-primary">${esc(i.sku)}</div><div class="cell-sub">${esc(i.name)}</div></div>
+        <div class="mono cell-sub" style="flex:none;">${(Number(i.qty)||0).toLocaleString("en-US")} on hand</div>
       </div>`).join("");
     box.hidden = false;
     positionPlannerSuggest();
