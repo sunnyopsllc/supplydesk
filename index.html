@@ -1997,20 +1997,42 @@
     }
     return total;
   }
+  // The existing finished "-10" item this component normally kits into (e.g. "...-STK" and
+  // "...-STKV3" both correlate to "...-10") — components don't carry their own sale/day, the
+  // finished item they build does.
+  function correlatingTenItem(item){
+    const base = stripKitSuffix(item.sku).toLowerCase();
+    if (!base) return null;
+    return state.items.find(x => x.sku.toLowerCase() === `${base}-10`) || null;
+  }
   // One input SKU's breakdown against a custom recipe ratio (qty of this input needed to make
-  // 1 unit of output) and a target output quantity. The reserve is this input's own normal
-  // depletion (its own salesPerDay, if tracked) over `reserveDays` — held back before anything
-  // is counted as free to build the event with.
+  // 1 unit of the NEW output) and a target output quantity.
+  //
+  // The reserve is a separate, standing concern from that custom recipe — it protects the
+  // correlating "-10" SKU's own everyday kitting, using the real fixed 10-components-per-pack
+  // ratio and that "-10" item's own sale/day: reserve (packs) = ceil(sale/day × reserveDays),
+  // reserve (component units) = that × 10. Combined -STK + -STKV3 on-hand (regardless of which
+  // one this row is) is also surfaced here so you can see, at a glance, how many "-10" packs
+  // current stock alone could still build against that 45-day need.
   function plannerComputeInput(item, ratio, eventDateISO, reserveDays, outputQty){
     const onHand = Number(item.qty) || 0;
     const incoming = plannerIncomingQty(item, eventDateISO);
     const supply = onHand + incoming;
-    const reserve = Math.ceil((Number(item.salesPerDay)||0) * (Number(reserveDays)||0));
+
+    const tenItem = correlatingTenItem(item);
+    const reserveTenPacks = tenItem ? Math.ceil((Number(tenItem.salesPerDay)||0) * (Number(reserveDays)||0)) : 0;
+    const reserve = reserveTenPacks * KIT_COMPONENT_RATIO;
+
+    const stkVariant = findKitVariant(item.sku, "stk");
+    const stkv3Variant = findKitVariant(item.sku, "stkv3");
+    const combinedOnHand = (Number(stkVariant?.qty)||0) + (Number(stkv3Variant?.qty)||0);
+    const combinedBuildableTenPacks = Math.floor(combinedOnHand / KIT_COMPONENT_RATIO);
+
     const surplus = Math.max(0, supply - reserve);
     const requiredForTarget = ratio > 0 ? ratio * (Number(outputQty)||0) : 0;
     const shortfall = Math.max(0, requiredForTarget - surplus);
     const maxOutputFromThis = ratio > 0 ? Math.floor(surplus / ratio) : null;
-    return { item, ratio, onHand, incoming, supply, reserve, surplus, requiredForTarget, shortfall, maxOutputFromThis };
+    return { item, ratio, onHand, incoming, supply, tenItem, reserveTenPacks, reserve, combinedOnHand, combinedBuildableTenPacks, surplus, requiredForTarget, shortfall, maxOutputFromThis };
   }
   function renderPlanner(){
     const root = document.getElementById("view-planner");
@@ -2147,7 +2169,7 @@
             ${rows.map(r => `<tr>
               <td><div class="cell-primary">${esc(r.item.sku)}</div>${r.ratio <= 0 ? `<div class="cell-sub">no ratio entered — excluded from feasibility</div>` : ""}</td>
               <td class="num">${r.supply.toLocaleString("en-US")}${r.incoming > 0 ? `<div class="cell-sub">${r.onHand.toLocaleString("en-US")} on hand + ${r.incoming.toLocaleString("en-US")} incoming</div>` : ""}</td>
-              <td class="num">${r.reserve.toLocaleString("en-US")}</td>
+              <td class="num">${r.reserve.toLocaleString("en-US")}<div class="cell-sub">${r.tenItem ? `${r.reserveTenPacks.toLocaleString("en-US")} packs of ${esc(r.tenItem.sku)} @ ${(Number(r.tenItem.salesPerDay)||0).toLocaleString("en-US")}/day` : "no correlating -10 SKU found"}</div><div class="cell-sub">Combined -STK+-STKV3 on hand builds ${r.combinedBuildableTenPacks.toLocaleString("en-US")} packs (${r.combinedOnHand.toLocaleString("en-US")} units)</div></td>
               <td class="num">${r.surplus.toLocaleString("en-US")}</td>
               <td class="num">${r.ratio > 0 ? r.requiredForTarget.toLocaleString("en-US") : "—"}</td>
               <td class="num" style="${r.shortfall>0?"color:var(--critical);font-weight:600;":""}">${r.ratio > 0 ? (r.shortfall > 0 ? r.shortfall.toLocaleString("en-US") : "OK") : "—"}</td>
