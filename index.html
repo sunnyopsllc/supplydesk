@@ -481,7 +481,7 @@
         </div>
         <div class="field">
           <label for="in-cost">Unit cost</label>
-          <input id="in-cost" name="cost" type="number" min="0" step="0.01" value="0">
+          <input id="in-cost" name="cost" type="number" min="0" step="0.0001" value="0">
         </div>
         <div class="field">
           <label for="in-reorder-point">Reorder point</label>
@@ -979,7 +979,9 @@
   }
   function fmtMoney(n){
     n = Number(n) || 0;
-    return "$" + n.toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
+    // Up to 4 decimals so sub-cent per-unit costs (e.g. $0.295) show as entered, while whole
+    // amounts still read as plain currency ($3.00, not $3.0000).
+    return "$" + n.toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:4 });
   }
   function fmtDate(iso){
     if (!iso) return "—";
@@ -2744,7 +2746,7 @@
         <td><input type="text" class="line-item-search" data-idx="${idx}" autocomplete="off" placeholder="Search SKU or name…" value="${it ? esc(it.sku + " — " + it.name) : ""}"></td>
         <td class="num cell-sub">${days !== null ? Math.floor(days) + "d" : "—"}</td>
         <td><input type="number" class="line-qty" min="0" step="1" value="${line.qtyOrdered}"></td>
-        <td><input type="number" class="line-cost" min="0" step="0.01" value="${line.cost}"></td>
+        <td><input type="number" class="line-cost" min="0" step="0.0001" value="${line.cost}"></td>
         <td class="line-total">${fmtMoney(total)}</td>
         <td><button type="button" class="rm-line" title="Remove line">✕</button></td>
       </tr>`;
