@@ -1996,22 +1996,24 @@
     }
     return total;
   }
-  // The full breakdown for one finished SKU: how many packs are already built, how many more
-  // could be kitted from combined -STK/-STKV3 supply (on hand + incoming by the event date),
-  // and — after reserving enough to keep running normal sales for `reserveDays` — how many are
-  // genuinely free to commit to the event.
+  // The full breakdown for one finished SKU. Event stock is built fresh from combined
+  // -STK/-STKV3 component supply (on hand + incoming by the event date) — already-finished
+  // "-10" on-hand stock is left alone entirely, since that's what covers normal day-to-day
+  // sales and isn't part of the event plan. The 45-day reserve is likewise held back in
+  // component units (enough -STK/-STKV3 to keep kitting at the normal pace for that many
+  // days), not compared against the finished on-hand figure.
   function plannerCompute(item, eventDateISO, reserveDays){
     const stk = findKitVariant(item.sku, "stk");
     const stkv3 = findKitVariant(item.sku, "stkv3");
     const componentOnHand = (Number(stk?.qty)||0) + (Number(stkv3?.qty)||0);
     const componentIncoming = plannerIncomingQty(stk, eventDateISO) + plannerIncomingQty(stkv3, eventDateISO);
     const componentSupply = componentOnHand + componentIncoming;
-    const buildablePacks = Math.floor(componentSupply / KIT_COMPONENT_RATIO);
-    const finishedOnHand = Number(item.qty) || 0;
-    const totalPacksByEventDate = finishedOnHand + buildablePacks;
     const reservePacks = Math.ceil((Number(item.salesPerDay)||0) * (Number(reserveDays)||0));
-    const availableForEvent = Math.max(0, totalPacksByEventDate - reservePacks);
-    return { item, stk, stkv3, componentOnHand, componentIncoming, componentSupply, buildablePacks, finishedOnHand, totalPacksByEventDate, reservePacks, availableForEvent };
+    const reserveComponentUnits = reservePacks * KIT_COMPONENT_RATIO;
+    const componentSurplus = Math.max(0, componentSupply - reserveComponentUnits);
+    const availableForEvent = Math.floor(componentSurplus / KIT_COMPONENT_RATIO);
+    const finishedOnHand = Number(item.qty) || 0;
+    return { item, stk, stkv3, componentOnHand, componentIncoming, componentSupply, reservePacks, reserveComponentUnits, componentSurplus, availableForEvent, finishedOnHand };
   }
   function renderPlanner(){
     const root = document.getElementById("view-planner");
@@ -2020,7 +2022,7 @@
       <div class="panel">
         <div class="panel-body" style="padding:16px 18px;">
           <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;">Event build planner</div>
-          <p class="hint" style="max-width:70ch;">A what-if calculator — nothing here is saved. Combines what's on hand right now with anything still due in from placed purchase orders by your event date, then holds back enough to keep ${esc(String(plannerState.reserveDays))} days of normal stock so the event doesn't eat into everyday supply.</p>
+          <p class="hint" style="max-width:70ch;">A what-if calculator — nothing here is saved. Figures how much you could kit fresh from -STK/-STKV3 stock (on hand plus anything due in from placed purchase orders by your event date), after holding back enough of that same stock to keep building at a normal pace for ${esc(String(plannerState.reserveDays))} more days. Existing "-10" on-hand stock isn't touched — that stays for everyday sales.</p>
           <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;">
             <div class="field" style="max-width:200px;">
               <label for="planner-event-date">Event date</label>
@@ -2083,11 +2085,10 @@
         <div class="table-wrap"><table>
           <thead><tr>
             <th>SKU</th>
-            <th class="num">On hand now</th>
-            <th class="num">Component supply<br>(on hand + incoming)</th>
-            <th class="num">Buildable from that</th>
-            <th class="num">Total by event</th>
-            <th class="num">Keep in reserve</th>
+            <th class="num">-10 on hand<br><span style="font-weight:400;">(not used for event)</span></th>
+            <th class="num">-STK/-STKV3 supply<br>(on hand + incoming)</th>
+            <th class="num">Reserve<br>(${esc(String(plannerState.reserveDays))}-day normal use)</th>
+            <th class="num">Surplus to build with</th>
             <th class="num">Available for event</th>
           </tr></thead>
           <tbody>
@@ -2095,14 +2096,13 @@
               <td><div class="cell-primary">${esc(r.item.sku)}</div><div class="cell-sub">${esc(r.item.name)}</div></td>
               <td class="num">${r.finishedOnHand.toLocaleString("en-US")}</td>
               <td class="num">${r.componentSupply.toLocaleString("en-US")}${r.componentIncoming > 0 ? `<div class="cell-sub">${r.componentOnHand.toLocaleString("en-US")} on hand + ${r.componentIncoming.toLocaleString("en-US")} incoming</div>` : ""}</td>
-              <td class="num">${r.buildablePacks.toLocaleString("en-US")}</td>
-              <td class="num">${r.totalPacksByEventDate.toLocaleString("en-US")}</td>
-              <td class="num">${r.reservePacks.toLocaleString("en-US")}</td>
+              <td class="num">${r.reserveComponentUnits.toLocaleString("en-US")}<div class="cell-sub">${r.reservePacks.toLocaleString("en-US")} packs' worth</div></td>
+              <td class="num">${r.componentSurplus.toLocaleString("en-US")}</td>
               <td class="num" style="font-weight:600;color:var(--accent);">${r.availableForEvent.toLocaleString("en-US")}</td>
             </tr>`).join("")}
           </tbody>
         </table></div>
-        <div class="hint" style="padding:10px 18px 0;">"Component supply" combines -STK and -STKV3, since either can be kitted into this SKU — ${KIT_COMPONENT_RATIO} component units per finished pack. Incoming only counts purchase orders marked Sent/Partially received with an expected date on or before the event.</div>
+        <div class="hint" style="padding:10px 18px 0;">Event stock is built fresh from -STK/-STKV3 (${KIT_COMPONENT_RATIO} component units per finished pack) — existing "-10" on-hand stock is left alone for normal sales, shown here for reference only. Incoming only counts purchase orders marked Sent/Partially received with an expected date on or before the event.</div>
       </div>
     `;
   }
