@@ -592,6 +592,9 @@
 
 <!-- PO dialog -->
 <dialog id="dlg-po" class="wide">
+  <!-- Lives inside the dialog (not at body level) so it stacks above the dialog's own
+       top-layer content — a fixed-position box outside a <dialog> renders behind it. -->
+  <div id="po-line-suggest" hidden style="position:fixed;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;box-shadow:var(--shadow);max-height:280px;overflow-y:auto;z-index:100;"></div>
   <form id="form-po">
     <div class="dlg-head">
       <div>
@@ -612,6 +615,10 @@
           <label for="in-po-vendor">Vendor</label>
           <select id="in-po-vendor" name="vendorId" required></select>
           <div class="err-msg">Choose which vendor this order goes to.</div>
+        </div>
+        <div class="field">
+          <label for="in-po-number">PO number</label>
+          <input id="in-po-number" name="poNumber" placeholder="Auto-generated if left blank">
         </div>
         <div class="field">
           <label for="in-po-expected">Expected delivery</label>
@@ -2734,7 +2741,7 @@
       const it = itemById(line.itemId);
       const days = it ? daysOfStock(it) : null;
       return `<tr data-idx="${idx}">
-        <td><select class="line-item">${`<option value="">Choose an item…</option>` + state.items.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(i => `<option value="${i.id}" ${i.id===line.itemId?'selected':''}>${esc(i.name)} (${esc(i.sku)})</option>`).join("")}</select></td>
+        <td><input type="text" class="line-item-search" data-idx="${idx}" autocomplete="off" placeholder="Search SKU or name…" value="${it ? esc(it.sku + " — " + it.name) : ""}"></td>
         <td class="num cell-sub">${days !== null ? Math.floor(days) + "d" : "—"}</td>
         <td><input type="number" class="line-qty" min="0" step="1" value="${line.qtyOrdered}"></td>
         <td><input type="number" class="line-cost" min="0" step="0.01" value="${line.cost}"></td>
@@ -2746,15 +2753,80 @@
 
     body.querySelectorAll("tr").forEach(tr => {
       const idx = Number(tr.dataset.idx);
-      tr.querySelector(".line-item").addEventListener("change", e => {
-        draftLines[idx].itemId = e.target.value || null;
-        const it = itemById(draftLines[idx].itemId);
-        if (it && !draftLines[idx].costTouched) draftLines[idx].cost = Number(it.cost) || 0;
-        renderPoLines();
-      });
+      const searchInput = tr.querySelector(".line-item-search");
+      searchInput.addEventListener("input", () => renderPoLineSuggest(idx));
+      searchInput.addEventListener("focus", () => renderPoLineSuggest(idx));
+      // Re-syncs the field back to whatever's actually selected if they typed without picking
+      // a suggestion — mousedown (not click) on a suggestion row fires first and prevents this
+      // blur from ever landing mid-click, same trick used by the other SKU search boxes.
+      searchInput.addEventListener("blur", () => setTimeout(() => { hidePoLineSuggest(); renderPoLines(); }, 150));
       tr.querySelector(".line-qty").addEventListener("input", e => { draftLines[idx].qtyOrdered = Number(e.target.value) || 0; updateLineTotal(idx); });
       tr.querySelector(".line-cost").addEventListener("input", e => { draftLines[idx].cost = Number(e.target.value) || 0; draftLines[idx].costTouched = true; updateLineTotal(idx); });
       tr.querySelector(".rm-line").addEventListener("click", () => { draftLines.splice(idx,1); renderPoLines(); });
+    });
+  }
+  // Type-to-filter dropdown for picking a line's item — same body-level-box-tracks-the-input
+  // pattern as the other SKU search boxes in the app, scoped to whichever PO line row is
+  // currently focused.
+  let poLineSuggestIdx = null;
+  function hidePoLineSuggest(){
+    const box = document.getElementById("po-line-suggest");
+    box.hidden = true; box.innerHTML = "";
+    poLineSuggestIdx = null;
+    window.removeEventListener("scroll", positionPoLineSuggest, true);
+    window.removeEventListener("resize", positionPoLineSuggest);
+  }
+  function positionPoLineSuggest(){
+    if (poLineSuggestIdx === null) return;
+    const input = document.querySelector(`.line-item-search[data-idx="${poLineSuggestIdx}"]`);
+    const box = document.getElementById("po-line-suggest");
+    if (!input || !box) return;
+    const r = input.getBoundingClientRect();
+    box.style.top = `${r.bottom + 4}px`;
+    box.style.left = `${r.left}px`;
+    box.style.width = `${r.width}px`;
+  }
+  function renderPoLineSuggest(idx){
+    const input = document.querySelector(`.line-item-search[data-idx="${idx}"]`);
+    const box = document.getElementById("po-line-suggest");
+    if (!input || !box) return;
+    poLineSuggestIdx = idx;
+    const q = input.value.trim().toLowerCase();
+    const scored = state.items
+      .map(i => {
+        const sku = i.sku.toLowerCase(), name = i.name.toLowerCase();
+        let rank;
+        if (!q) rank = 0;
+        else if (sku.startsWith(q) || name.startsWith(q)) rank = 0;
+        else if (sku.includes(q) || name.includes(q)) rank = 1;
+        else rank = -1;
+        return { item:i, rank };
+      })
+      .filter(x => x.rank >= 0)
+      .sort((a,b) => a.rank - b.rank || a.item.sku.localeCompare(b.item.sku))
+      .slice(0, q ? 8 : 20);
+    if (scored.length === 0){ hidePoLineSuggest(); return; }
+    box.innerHTML = scored.map(({item:i}) => `
+      <div class="po-line-suggest-row" data-id="${i.id}" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13.5px;">
+        <div class="cell-primary">${esc(i.sku)}</div><div class="cell-sub">${esc(i.name)}</div>
+      </div>`).join("");
+    box.hidden = false;
+    positionPoLineSuggest();
+    window.addEventListener("scroll", positionPoLineSuggest, true);
+    window.addEventListener("resize", positionPoLineSuggest);
+    box.querySelectorAll(".po-line-suggest-row").forEach(row => {
+      row.addEventListener("mouseenter", () => { row.style.background = "var(--surface-2)"; });
+      row.addEventListener("mouseleave", () => { row.style.background = ""; });
+      row.addEventListener("mousedown", e => {
+        e.preventDefault();
+        const chosen = itemById(row.dataset.id);
+        if (chosen && draftLines[idx]){
+          draftLines[idx].itemId = chosen.id;
+          if (!draftLines[idx].costTouched) draftLines[idx].cost = Number(chosen.cost) || 0;
+        }
+        hidePoLineSuggest();
+        renderPoLines();
+      });
     });
   }
   function updateLineTotal(idx){
@@ -2825,6 +2897,7 @@
       document.getElementById("po-dlg-sub").innerHTML = `<span class="pill ${sm.cls}">${sm.label}</span>`;
       document.getElementById("po-submit").textContent = "Save changes";
       vendorSelect.value = po.vendorId;
+      form.poNumber.value = po.number || "";
       form.expected.value = po.expected || "";
       form.notes.value = po.notes || "";
       document.getElementById("po-kv").style.display = "flex";
@@ -2868,6 +2941,7 @@
         draftLines.push({ itemId: prefill.itemId, qtyOrdered: prefill.qty || 1, cost: prefill.cost || 0, qtyReceived:0, costTouched:true });
       }
       if (prefill && prefill.vendorId) vendorSelect.value = prefill.vendorId;
+      form.poNumber.value = poNumber(state.counters.po || 1);
       form.expected.value = "";
     }
     renderPoLines();
@@ -2917,6 +2991,7 @@
       }
 
       po.vendorId = vendorId;
+      po.number = form.poNumber.value.trim() || po.number;
       po.expected = form.expected.value || "";
       po.notes = form.notes.value.trim();
       po.lines = validLines.map(l => ({
@@ -2929,7 +3004,7 @@
     } else {
       const po = {
         id: uid("po"),
-        number: poNumber(state.counters.po - 1),
+        number: form.poNumber.value.trim() || poNumber(state.counters.po - 1),
         vendorId,
         status: "draft",
         created: todayISO(),
