@@ -3008,7 +3008,10 @@
         id: uid("po"),
         number: form.poNumber.value.trim() || poNumber(state.counters.po - 1),
         vendorId,
-        status: "draft",
+        // Entering a PO here means it's already been placed with the manufacturer — not a
+        // tentative draft — so it starts "sent" and counts toward "On PO" right away, no
+        // extra click needed.
+        status: "sent",
         created: todayISO(),
         expected: form.expected.value || "",
         notes: form.notes.value.trim(),
