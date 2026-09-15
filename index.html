@@ -2197,10 +2197,10 @@
   }
 
   /* ============ event / build planner (what-if only — never persisted) ============ */
-  // Inputs you can pick from are raw components — -STK/-STKV3 — not finished "-10" goods,
-  // since those are what actually gets built fresh for an event.
+  // Inputs you can pick from are raw/component SKUs — -STK, -STKV3, -PARENT — not finished
+  // "-10" goods, since those are what actually gets built fresh for an event.
   function plannerEligibleItems(){
-    return state.items.filter(i => /-(stk|stkv3)$/i.test(i.sku));
+    return state.items.filter(i => /-(stk|stkv3|parent)$/i.test(i.sku));
   }
   // Supply "still coming" for an item, from open (sent/partial) POs whose expected date falls
   // on or before the event date — unreceived remainder only, so anything already checked in is
@@ -2218,11 +2218,13 @@
     }
     return total;
   }
-  // The existing finished "-10" item this component normally kits into (e.g. "...-STK" and
-  // "...-STKV3" both correlate to "...-10") — components don't carry their own sale/day, the
-  // finished item they build does.
+  // The existing finished "-10" item this component normally kits into (e.g. "...-STK",
+  // "...-STKV3", and "...-PARENT" all correlate to "...-10") — components don't carry their
+  // own sale/day, the finished item they build does. Strips "-parent" too, on top of whatever
+  // stripKitSuffix already handles, since that shared helper is also used by Build kit/Inventory
+  // matching that isn't -parent-aware.
   function correlatingTenItem(item){
-    const base = stripKitSuffix(item.sku).toLowerCase();
+    const base = stripKitSuffix(item.sku).replace(/-parent$/i, "").toLowerCase();
     if (!base) return null;
     return state.items.find(x => x.sku.toLowerCase() === `${base}-10`) || null;
   }
