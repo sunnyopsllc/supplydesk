@@ -652,8 +652,9 @@
         </div>
         <div class="table-wrap">
           <table class="lines-table">
-            <thead><tr><th style="width:30%">Item</th><th style="width:14%">Ordered</th><th style="width:16%">Received so far</th><th style="width:18%">Receive now</th><th style="width:22%">Lot #</th></tr></thead>
+            <thead><tr><th style="width:26%">Item</th><th style="width:12%">Ordered</th><th style="width:14%">Received so far</th><th style="width:14%">Remaining</th><th style="width:16%">Receive now</th><th style="width:18%">Lot #</th></tr></thead>
             <tbody id="po-receive-body"></tbody>
+            <tfoot><tr class="lines-total-row"><td colspan="3">Remaining to receive</td><td class="mono" id="po-recv-remaining-total" colspan="3">0</td></tr></tfoot>
           </table>
         </div>
         <div id="po-receipt-history" style="margin-top:16px;"></div>
@@ -2863,10 +2864,12 @@
       const ordered = Number(line.qtyOrdered)||0;
       const receivedSoFar = Number(line.qtyReceived)||0;
       const over = receivedSoFar - ordered;
+      const remaining = Math.max(0, ordered - receivedSoFar);
       return `<tr data-idx="${idx}">
         <td>${it ? esc(it.name) : '<span class="cell-sub">Deleted item</span>'}</td>
         <td class="mono">${ordered}</td>
         <td class="mono">${receivedSoFar}${over > 0 ? ` <span class="pill pill-warn">+${over} over</span>` : ""}</td>
+        <td class="mono" data-remaining="${remaining}">${remaining}</td>
         <td><input type="number" class="recv-qty" min="0" step="1" value="0"></td>
         <td><input type="text" class="recv-lot" placeholder="optional"></td>
       </tr>`;
@@ -2916,9 +2919,12 @@
     document.querySelectorAll("#po-receive-body .recv-qty").forEach(inp => {
       pending += Math.max(0, Number(inp.value)||0);
     });
+    const outstanding = Math.max(0, ordered - receivedSoFar - pending);
     document.getElementById("po-stat-ordered").textContent = ordered.toLocaleString("en-US");
     document.getElementById("po-stat-received").textContent = (receivedSoFar + pending).toLocaleString("en-US");
-    document.getElementById("po-stat-outstanding").textContent = Math.max(0, ordered - receivedSoFar - pending).toLocaleString("en-US");
+    document.getElementById("po-stat-outstanding").textContent = outstanding.toLocaleString("en-US");
+    const footer = document.getElementById("po-recv-remaining-total");
+    if (footer) footer.textContent = outstanding.toLocaleString("en-US");
   }
 
   function openPoDialog(id, prefill){
