@@ -1955,7 +1955,7 @@
       return Math.max(0, Math.ceil(TOPUP_TARGET_DAYS * spd - (Number(i.qty)||0)));
     };
     panel.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Item</th><th class="num">On hand</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
+      <thead><tr><th>Item</th><th class="num">On hand</th><th class="num">On PO</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
       <tbody>
         ${rows.map(i => {
           const v = vendorById(i.vendorId);
@@ -1970,6 +1970,7 @@
           return `<tr>
             <td data-act="edit-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}${i.uom?` · ${esc(i.uom)}`:''}</div>${openWorkOrderPill(i)}</td>
             <td class="num">${Number(i.qty)||0}</td>
+            <td class="num">${itemOnPoQty(i.id) > 0 ? itemOnPoQty(i.id).toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
             ${stkCols}
             ${showStkCols ? "" : `<td class="num">${Number(i.reorderPoint)||0}</td>`}
             <td><span class="pill pill-${st.key}">${st.label}</span></td>
