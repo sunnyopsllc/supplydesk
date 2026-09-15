@@ -645,13 +645,18 @@
 
       <fieldset id="po-receive-fieldset" hidden>
         <legend>Receive shipment</legend>
-        <div class="hint" style="margin-top:-6px;">Enter how many units arrived. This adds straight to inventory on hand.</div>
+        <div class="hint" style="margin-top:-6px;">Enter how many units arrived — overproduction is fine, it doesn't cap at what was ordered. This adds straight to inventory on hand.</div>
+        <div class="field" style="max-width:200px;margin:10px 0 12px;">
+          <label for="po-recv-date">Date received</label>
+          <input type="date" id="po-recv-date">
+        </div>
         <div class="table-wrap">
           <table class="lines-table">
-            <thead><tr><th style="width:38%">Item</th><th style="width:20%">Ordered</th><th style="width:20%">Already received</th><th style="width:22%">Receive now</th></tr></thead>
+            <thead><tr><th style="width:30%">Item</th><th style="width:14%">Ordered</th><th style="width:16%">Received so far</th><th style="width:18%">Receive now</th><th style="width:22%">Lot #</th></tr></thead>
             <tbody id="po-receive-body"></tbody>
           </table>
         </div>
+        <div id="po-receipt-history" style="margin-top:16px;"></div>
       </fieldset>
     </div>
     <div class="dlg-foot">
@@ -1043,6 +1048,8 @@
         if (lineRemaining <= 0) continue;
         const take = Math.min(lineRemaining, remaining);
         line.qtyReceived = (Number(line.qtyReceived)||0) + take;
+        if (!line.receipts) line.receipts = [];
+        line.receipts.push({ date: todayISO(), qty: take, lotNumber: "" });
         remaining -= take;
         touched = true;
       }
@@ -2849,29 +2856,65 @@
       return;
     }
     fs.hidden = false;
+    document.getElementById("po-recv-date").value = todayISO();
     const body = document.getElementById("po-receive-body");
     body.innerHTML = po.lines.map((line, idx) => {
       const it = itemById(line.itemId);
-      const remaining = Math.max(0, (Number(line.qtyOrdered)||0) - (Number(line.qtyReceived)||0));
+      const ordered = Number(line.qtyOrdered)||0;
+      const receivedSoFar = Number(line.qtyReceived)||0;
+      const over = receivedSoFar - ordered;
       return `<tr data-idx="${idx}">
         <td>${it ? esc(it.name) : '<span class="cell-sub">Deleted item</span>'}</td>
-        <td class="mono">${line.qtyOrdered}</td>
-        <td class="mono">${line.qtyReceived || 0}</td>
-        <td><input type="number" class="recv-qty" min="0" max="${remaining}" step="1" value="0" data-remaining="${remaining}"></td>
+        <td class="mono">${ordered}</td>
+        <td class="mono">${receivedSoFar}${over > 0 ? ` <span class="pill pill-warn">+${over} over</span>` : ""}</td>
+        <td><input type="number" class="recv-qty" min="0" step="1" value="0"></td>
+        <td><input type="text" class="recv-lot" placeholder="optional"></td>
       </tr>`;
     }).join("");
     body.querySelectorAll(".recv-qty").forEach(inp => inp.addEventListener("input", () => updatePoStatTiles(po)));
+    renderPoReceiptHistory(po);
+  }
+  // Every logged receipt across every line, most recent first — the "look back on when and
+  // how much was received" record. Pulled straight from each line's own `receipts` array, so
+  // it survives edits to the order lines above (matched by item, same as qtyReceived).
+  function renderPoReceiptHistory(po){
+    const el = document.getElementById("po-receipt-history");
+    if (!el) return;
+    const rows = [];
+    po.lines.forEach(line => {
+      const it = itemById(line.itemId);
+      (line.receipts || []).forEach(r => rows.push({ ...r, item: it }));
+    });
+    if (rows.length === 0){ el.innerHTML = ""; return; }
+    rows.sort((a,b) => (b.date||"").localeCompare(a.date||""));
+    el.innerHTML = `
+      <div class="hint" style="margin-bottom:6px;">Receipt history</div>
+      <div class="table-wrap" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;">
+        <table class="lines-table">
+          <thead><tr><th>Date</th><th>Item</th><th class="num">Qty</th><th>Lot #</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${fmtDate(r.date)}</td>
+              <td>${r.item ? esc(r.item.name) : '<span class="cell-sub">Deleted item</span>'}</td>
+              <td class="num mono">${Number(r.qty)||0}</td>
+              <td>${r.lotNumber ? esc(r.lotNumber) : '<span class="cell-sub">—</span>'}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
   // Ordered / Received / Outstanding, counting whatever's typed into "Receive now" but not
   // yet saved — so the tiles reflect what you're about to record, not just what's already on
-  // file.
+  // file. Overage (received beyond what was ordered) is allowed and just floors outstanding
+  // at 0 rather than going negative.
   function updatePoStatTiles(po){
     if (!po) return;
     const ordered = poOrderedTotal(po);
     const receivedSoFar = poReceivedTotal(po);
     let pending = 0;
     document.querySelectorAll("#po-receive-body .recv-qty").forEach(inp => {
-      pending += Math.max(0, Math.min(Number(inp.value)||0, Number(inp.dataset.remaining)||0));
+      pending += Math.max(0, Number(inp.value)||0);
     });
     document.getElementById("po-stat-ordered").textContent = ordered.toLocaleString("en-US");
     document.getElementById("po-stat-received").textContent = (receivedSoFar + pending).toLocaleString("en-US");
@@ -2971,23 +3014,35 @@
 
     if (editingPoId){
       const po = poById(editingPoId);
-      // tally received-so-far per item from the lines as they were when this dialog opened
+      // tally received-so-far, and every receipt logged so far, per item — from the lines as
+      // they were when this dialog opened
       const receivedByItemId = {};
-      po.lines.forEach(l => { receivedByItemId[l.itemId] = (receivedByItemId[l.itemId]||0) + (Number(l.qtyReceived)||0); });
+      const receiptsByItemId = {};
+      po.lines.forEach(l => {
+        receivedByItemId[l.itemId] = (receivedByItemId[l.itemId]||0) + (Number(l.qtyReceived)||0);
+        if (Array.isArray(l.receipts) && l.receipts.length){
+          receiptsByItemId[l.itemId] = (receiptsByItemId[l.itemId]||[]).concat(l.receipts);
+        }
+      });
 
       // apply any new receiving deltas (matched by item, not position, so edits to the
-      // lines above can't shift a receipt onto the wrong row)
+      // lines above can't shift a receipt onto the wrong row) — overproduction is normal in
+      // this business, so there's no cap against what was ordered.
       const recvBody = document.getElementById("po-receive-body");
       if (!document.getElementById("po-receive-fieldset").hidden && recvBody){
+        const receivedDate = document.getElementById("po-recv-date").value || todayISO();
         recvBody.querySelectorAll("tr").forEach(tr => {
           const origLine = po.lines[Number(tr.dataset.idx)];
           if (!origLine) return;
           const input = tr.querySelector(".recv-qty");
-          const delta = Math.max(0, Math.min(Number(input.value)||0, Number(input.dataset.remaining)||0));
+          const lotInput = tr.querySelector(".recv-lot");
+          const delta = Math.max(0, Number(input.value)||0);
           if (delta > 0){
             receivedByItemId[origLine.itemId] = (receivedByItemId[origLine.itemId]||0) + delta;
             const it = itemById(origLine.itemId);
             if (it) it.qty = (Number(it.qty)||0) + delta;
+            if (!receiptsByItemId[origLine.itemId]) receiptsByItemId[origLine.itemId] = [];
+            receiptsByItemId[origLine.itemId].push({ date: receivedDate, qty: delta, lotNumber: (lotInput.value||"").trim() });
           }
         });
       }
@@ -3000,7 +3055,8 @@
         itemId: l.itemId,
         qtyOrdered: Number(l.qtyOrdered)||0,
         cost: Number(l.cost)||0,
-        qtyReceived: receivedByItemId[l.itemId] || 0
+        qtyReceived: receivedByItemId[l.itemId] || 0,
+        receipts: receiptsByItemId[l.itemId] || []
       }));
       recomputePoStatus(po);
     } else {
@@ -3016,7 +3072,7 @@
         expected: form.expected.value || "",
         notes: form.notes.value.trim(),
         receivedDate: "",
-        lines: validLines.map(l => ({ itemId: l.itemId, qtyOrdered: Number(l.qtyOrdered)||0, cost: Number(l.cost)||0, qtyReceived: 0 }))
+        lines: validLines.map(l => ({ itemId: l.itemId, qtyOrdered: Number(l.qtyOrdered)||0, cost: Number(l.cost)||0, qtyReceived: 0, receipts: [] }))
       };
       state.pos.push(po);
     }
