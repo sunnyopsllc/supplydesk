@@ -880,18 +880,32 @@
   const LS_KEY = "supply-desk-state-v1"; // last-resort fallback only, when shared storage can't be reached
 
   function defaultState(){
-    return { items:[], vendors:[], pos:[], kits:[], counters:{ item:1, vendor:1, po:1, kit:1 }, meta:{} };
+    return { items:[], vendors:[], pos:[], kits:[], counters:{ item:1, vendor:1, po:1, kit:1 }, meta:{}, planner:{ eventDate:"", reserveDays:45, builds:[] } };
   }
   function normalizeState(s){
     const d = defaultState();
     if (!s || typeof s !== "object") return d;
+    const p = (s.planner && typeof s.planner === "object") ? s.planner : {};
     return {
       items: Array.isArray(s.items) ? s.items : [],
       vendors: Array.isArray(s.vendors) ? s.vendors : [],
       pos: Array.isArray(s.pos) ? s.pos : [],
       kits: Array.isArray(s.kits) ? s.kits : [],
       counters: Object.assign({}, d.counters, s.counters || {}),
-      meta: Object.assign({}, d.meta, (s.meta && typeof s.meta === "object") ? s.meta : {})
+      meta: Object.assign({}, d.meta, (s.meta && typeof s.meta === "object") ? s.meta : {}),
+      // Saved Event Planner progress — `selected` is stored as a plain array (JSON has no Set),
+      // converted back to a real Set when hydrated into the live, in-memory `plannerState`.
+      planner: {
+        eventDate: typeof p.eventDate === "string" ? p.eventDate : "",
+        reserveDays: Number.isFinite(Number(p.reserveDays)) ? Number(p.reserveDays) : 45,
+        builds: Array.isArray(p.builds) ? p.builds.map(b => ({
+          id: (b && b.id) || ("build-" + Math.random().toString(36).slice(2)),
+          outputName: (b && typeof b.outputName === "string") ? b.outputName : "",
+          outputQty: (b && Number(b.outputQty)) || 0,
+          selected: (b && Array.isArray(b.selected)) ? b.selected : [],
+          ratios: (b && b.ratios && typeof b.ratios === "object") ? b.ratios : {}
+        })) : []
+      }
     };
   }
 
@@ -2080,17 +2094,62 @@
 
   /* ============ vendors ============ */
   let vendorFilter = { q:"" };
-  // Event planner is a pure what-if calculator — never saved to app_state, always recomputed
-  // live from whatever's currently on hand / on order, so it's safe to poke at without
-  // affecting real inventory data.
+  // Event planner is a what-if calculator that recomputes live from whatever's currently on
+  // hand/on order — but its inputs (event date, reserve days, each build's name/qty/recipe)
+  // are saved to app_state.planner so progress survives a reload, same as everything else.
   // `builds` is a stack — each output can compete for the same -STK/-STKV3 supply as the ones
-  // before it, and earlier builds get first claim (see plannerAllocationPool in the planner
+  // before it, and earlier builds get first claim (see the allocation pool in the planner
   // section below).
   let plannerState = { eventDate: "", reserveDays: 45, builds: [] };
   let plannerBuildSeq = 0;
   function newPlannerBuild(){
     plannerBuildSeq += 1;
     return { id: "build-" + plannerBuildSeq, outputName: "", outputQty: 0, selected: new Set(), ratios: {} };
+  }
+  // Runs once at boot, restoring plannerState (with `selected` converted back from a plain
+  // array into a real Set) from whatever was last saved — never re-run on a later realtime
+  // update, so an edit on another device/tab doesn't reset progress mid-session here.
+  function hydratePlannerState(){
+    const saved = (state.planner && typeof state.planner === "object") ? state.planner : defaultState().planner;
+    plannerState = {
+      eventDate: saved.eventDate || "",
+      reserveDays: Number(saved.reserveDays) || 45,
+      builds: (saved.builds || []).map(b => ({
+        id: b.id,
+        outputName: b.outputName || "",
+        outputQty: Number(b.outputQty) || 0,
+        selected: new Set(b.selected || []),
+        ratios: Object.assign({}, b.ratios || {})
+      }))
+    };
+    // keep future auto-generated ids from colliding with restored ones
+    let maxSeq = 0;
+    plannerState.builds.forEach(b => {
+      const m = /^build-(\d+)$/.exec(b.id || "");
+      if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
+    });
+    plannerBuildSeq = maxSeq;
+  }
+  // Debounced so continuous typing (a ratio, an output qty) doesn't write on every keystroke —
+  // saves ~1s after the last edit. Converts each build's `selected` Set to a plain array, the
+  // only part of plannerState that isn't already JSON-safe.
+  let plannerSaveTimer = null;
+  function schedulePlannerSave(){
+    clearTimeout(plannerSaveTimer);
+    plannerSaveTimer = setTimeout(() => {
+      state.planner = {
+        eventDate: plannerState.eventDate,
+        reserveDays: plannerState.reserveDays,
+        builds: plannerState.builds.map(b => ({
+          id: b.id,
+          outputName: b.outputName,
+          outputQty: b.outputQty,
+          selected: Array.from(b.selected),
+          ratios: b.ratios
+        }))
+      };
+      persist();
+    }, 800);
   }
   function renderVendors(){
     const root = document.getElementById("view-vendors");
@@ -2189,7 +2248,10 @@
     const combinedOnHand = (Number(stkVariant?.qty)||0) + (Number(stkv3Variant?.qty)||0);
     const combinedBuildableTenPacks = Math.floor(combinedOnHand / KIT_COMPONENT_RATIO);
 
-    const baseSurplus = Math.max(0, supply - reserve);
+    // "Available to this output" counts only physical on-hand stock — incoming POs are shown
+    // in the Supply column for reference but aren't treated as usable until they've actually
+    // arrived (per explicit instruction).
+    const baseSurplus = Math.max(0, onHand - reserve);
     return { item, onHand, incoming, supply, tenItem, tenOnHand, reserveTenPacksTotal, reserveTenPacksCoveredByStock, reserveTenPacks, reserve, combinedOnHand, combinedBuildableTenPacks, baseSurplus };
   }
   function renderPlanner(){
@@ -2199,7 +2261,7 @@
       <div class="panel">
         <div class="panel-body" style="padding:16px 18px;">
           <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;">Event build planner</div>
-          <p class="hint" style="max-width:70ch;">A what-if calculator — nothing here is saved. Stack as many outputs as you need: each one below competes for the same -STK/-STKV3 supply as the ones above it, so adding a second output shows what's actually left over after the first one's needs are already spoken for — not the same pool double-counted.</p>
+          <p class="hint" style="max-width:70ch;">A what-if calculator — your progress is saved automatically. Stack as many outputs as you need: each one below competes for the same -STK/-STKV3 supply as the ones above it, so adding a second output shows what's actually left over after the first one's needs are already spoken for — not the same pool double-counted.</p>
           <div class="field-grid" style="margin-top:12px;">
             <div class="field">
               <label for="planner-event-date">Event date</label>
@@ -2217,11 +2279,12 @@
       <button type="button" class="btn" id="planner-add-build" style="margin-bottom:32px;">+ Add another output</button>
     `;
 
-    document.getElementById("planner-event-date").oninput = e => { plannerState.eventDate = e.target.value; renderAllPlannerResults(); };
-    document.getElementById("planner-reserve-days").oninput = e => { plannerState.reserveDays = Math.max(0, Number(e.target.value)||0); renderAllPlannerResults(); };
+    document.getElementById("planner-event-date").oninput = e => { plannerState.eventDate = e.target.value; renderAllPlannerResults(); schedulePlannerSave(); };
+    document.getElementById("planner-reserve-days").oninput = e => { plannerState.reserveDays = Math.max(0, Number(e.target.value)||0); renderAllPlannerResults(); schedulePlannerSave(); };
     document.getElementById("planner-add-build").onclick = () => {
       plannerState.builds.push(newPlannerBuild());
       renderPlannerBuilds();
+      schedulePlannerSave();
     };
     renderPlannerBuilds();
   }
@@ -2269,6 +2332,7 @@
       btn.onclick = () => {
         plannerState.builds = plannerState.builds.filter(b => b.id !== btn.dataset.buildId);
         renderPlannerBuilds();
+        schedulePlannerSave();
       };
     });
     container.querySelectorAll(".planner-output-name").forEach(inp => {
@@ -2276,6 +2340,7 @@
         const b = plannerState.builds.find(x => x.id === inp.dataset.buildId);
         if (b) b.outputName = inp.value;
         renderAllPlannerResults();
+        schedulePlannerSave();
       };
     });
     container.querySelectorAll(".planner-output-qty").forEach(inp => {
@@ -2283,6 +2348,7 @@
         const b = plannerState.builds.find(x => x.id === inp.dataset.buildId);
         if (b) b.outputQty = Math.max(0, Number(inp.value)||0);
         renderAllPlannerResults();
+        schedulePlannerSave();
       };
     });
     container.querySelectorAll(".planner-search").forEach(inp => {
@@ -2361,6 +2427,7 @@
         if (countEl) countEl.textContent = `${build.selected.size} selected`;
         renderPlannerChips(buildId);
         renderPlannerRecipe(buildId);
+        schedulePlannerSave();
       });
     });
   }
@@ -2382,6 +2449,7 @@
         if (countEl) countEl.textContent = `${build.selected.size} selected`;
         renderPlannerChips(buildId);
         renderPlannerRecipe(buildId);
+        schedulePlannerSave();
       };
     });
   }
@@ -2411,7 +2479,7 @@
       </table></div>
     `;
     panel.querySelectorAll(".planner-ratio").forEach(inp => {
-      inp.oninput = () => { build.ratios[inp.dataset.id] = Math.max(0, Number(inp.value)||0); renderAllPlannerResults(); };
+      inp.oninput = () => { build.ratios[inp.dataset.id] = Math.max(0, Number(inp.value)||0); renderAllPlannerResults(); schedulePlannerSave(); };
     });
     renderAllPlannerResults();
   }
@@ -2467,7 +2535,6 @@
     const target = Number(build.outputQty) || 0;
     const meetsTarget = target > 0 && withRatio.length > 0 && withRatio.every(r => r.shortfall === 0);
 
-    const canSubmit = meetsTarget && build.outputName.trim();
     panel.innerHTML = `
       <div class="panel-head"><h2>Feasibility for ${esc(outputLabel)}</h2>${target > 0 ? `<span class="pill ${meetsTarget ? "pill-ok" : "pill-critical"}">${meetsTarget ? "Target met" : "Short"}</span>` : ""}</div>
       <div class="panel-body">
@@ -2478,27 +2545,22 @@
         </div>
         ${target > 0 && withRatio.length > 0 ? `
         <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px;flex-wrap:wrap;">
-          <a class="btn" href="${esc(buildPlannerWorkOrderFormUrl(outputLabel, target, withRatio))}" target="_blank" rel="noopener">Request Work Order</a>
-          ${canSubmit ? `<button type="button" class="btn btn-primary planner-submit-wo">Submit Work Order →</button>` : ""}
-          <span class="hint">${canSubmit
-            ? `"Request" opens Launch's form pre-filled, to review and send yourself. "Submit" creates it directly in Deposco for "${esc(outputLabel)}" — the name above must match an existing Deposco kit exactly, or it'll be rejected there. Either way you review before anything sends.`
-            : meetsTarget
-              ? `Name this output above to also enable submitting it directly to Deposco.`
-              : `"Request Work Order" opens Launch's form pre-filled with this recipe, to review and send yourself — works even before the target's fully met. Direct Deposco submission unlocks once every input shows no shortfall.`}</span>
+          <a class="btn btn-primary" href="${esc(buildPlannerWorkOrderFormUrl(outputLabel, target, withRatio))}" target="_blank" rel="noopener">Submit Work Order →</a>
+          <span class="hint">Opens Launch's form pre-filled with this output and recipe, to review and send yourself — works even before the target's fully met.</span>
         </div>` : ""}
         <div class="table-wrap"><table>
           <thead><tr>
             <th>Input SKU</th>
-            <th class="num">Supply<br>(on hand + incoming)</th>
+            <th class="num">On hand<br><span style="font-weight:400;">(+ incoming, for reference)</span></th>
             <th class="num">Reserve<br>(${esc(String(plannerState.reserveDays))}-day normal use)</th>
-            <th class="num">Available to this output</th>
+            <th class="num">Available to this output<br><span style="font-weight:400;">(on hand only)</span></th>
             <th class="num">Needed for target</th>
             <th class="num">Shortfall</th>
           </tr></thead>
           <tbody>
             ${rows.map(r => `<tr>
               <td><div class="cell-primary">${esc(r.item.sku)}</div>${r.ratio <= 0 ? `<div class="cell-sub">no ratio entered — excluded from feasibility</div>` : ""}</td>
-              <td class="num">${r.base.supply.toLocaleString("en-US")}${r.base.incoming > 0 ? `<div class="cell-sub">${r.base.onHand.toLocaleString("en-US")} on hand + ${r.base.incoming.toLocaleString("en-US")} incoming</div>` : ""}</td>
+              <td class="num">${r.base.onHand.toLocaleString("en-US")}${r.base.incoming > 0 ? `<div class="cell-sub">+ ${r.base.incoming.toLocaleString("en-US")} incoming, not yet counted</div>` : ""}</td>
               <td class="num">${r.base.reserve.toLocaleString("en-US")}${r.base.tenItem ? `
                 <div class="cell-sub">${r.base.reserveTenPacksTotal.toLocaleString("en-US")} packs needed (${esc(r.base.tenItem.sku)} @ ${(Number(r.base.tenItem.salesPerDay)||0).toLocaleString("en-US")}/day)</div>
                 <div class="cell-sub">− ${r.base.reserveTenPacksCoveredByStock.toLocaleString("en-US")} already covered by ${r.base.tenOnHand.toLocaleString("en-US")} -10 on hand</div>
@@ -2512,10 +2574,6 @@
         </table></div>`}
       </div>
     `;
-    const submitBtn = panel.querySelector(".planner-submit-wo");
-    if (submitBtn){
-      submitBtn.onclick = () => openCreateWorkOrderDialog(outputLabel, target, plannerState.eventDate);
-    }
   }
 
   /* ============ row action delegation ============ */
@@ -4136,6 +4194,7 @@
   async function boot(){
     renderAll();
     await subscribeState();
+    hydratePlannerState();
     renderAll();
 
     // standing cleanup rules: remove items that violate an exclusion rule even if they made it
