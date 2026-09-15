@@ -12,6 +12,18 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+// Without these, the browser's CORS preflight (an OPTIONS request the
+// browser sends before the real POST, since it carries an Authorization
+// header) gets no response headers it accepts, so it blocks the actual
+// response before the page's JS ever sees it — surfaces client-side as a
+// generic "Failed to send a request to the Edge Function", even though the
+// function itself runs fine (a plain server-to-server call skips CORS
+// entirely, which is why this didn't show up in earlier testing).
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 function generateWorkOrderNumber(): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -45,11 +57,14 @@ async function getDeposcoAccessToken(): Promise<string> {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   try {
     if (req.method !== "POST") {
       return new Response(JSON.stringify({ ok: false, error: "Method not allowed" }), {
         status: 405,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -68,7 +83,7 @@ Deno.serve(async (req) => {
     if (userError || !userData?.user) {
       return new Response(JSON.stringify({ ok: false, error: "Not authenticated" }), {
         status: 401,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -76,20 +91,20 @@ Deno.serve(async (req) => {
     if (!sku || typeof sku !== "string") {
       return new Response(JSON.stringify({ ok: false, error: "Missing sku" }), {
         status: 400,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const quantity = Number(qty);
     if (!Number.isFinite(quantity) || quantity <= 0) {
       return new Response(JSON.stringify({ ok: false, error: "Qty must be a positive number" }), {
         status: 400,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (!dueDate || typeof dueDate !== "string") {
       return new Response(JSON.stringify({ ok: false, error: "Missing dueDate" }), {
         status: 400,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -120,7 +135,7 @@ Deno.serve(async (req) => {
       const errText = await createResp.text();
       return new Response(
         JSON.stringify({ ok: false, error: `Deposco rejected the request: ${errText}` }),
-        { status: 502, headers: { "Content-Type": "application/json" } },
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -149,13 +164,13 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ ok: true, number, qty: quantity, dueDate }),
-      { headers: { "Content-Type": "application/json" } },
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
     console.error(err);
     return new Response(
       JSON.stringify({ ok: false, error: String(err?.message ?? err) }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

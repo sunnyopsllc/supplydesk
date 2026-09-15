@@ -16,6 +16,18 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+// Without these, the browser's CORS preflight (an OPTIONS request the
+// browser sends before the real POST, since it carries an Authorization
+// header) gets no response headers it accepts, so it blocks the actual
+// response before the page's JS ever sees it — surfaces client-side as a
+// generic "Failed to send a request to the Edge Function", even though the
+// function itself runs fine (a plain server-to-server call skips CORS
+// entirely, which is why this didn't show up in earlier testing).
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 const V3_SUFFIX_RE = /[\s-]*v3$/i;
 
 function skuFromKitName(name: string | undefined | null): string {
@@ -65,6 +77,9 @@ async function getOpenWorkOrders(accessToken: string): Promise<any[]> {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -88,7 +103,7 @@ Deno.serve(async (req) => {
       if (userError || !userData?.user) {
         return new Response(JSON.stringify({ ok: false, error: "Not authenticated" }), {
           status: 401,
-          headers: { "Content-Type": "application/json" },
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }
@@ -150,13 +165,13 @@ Deno.serve(async (req) => {
         itemsUpdated: setCount,
         itemsCleared: clearedCount,
       }),
-      { headers: { "Content-Type": "application/json" } },
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
     console.error(err);
     return new Response(
       JSON.stringify({ ok: false, error: String(err?.message ?? err) }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
