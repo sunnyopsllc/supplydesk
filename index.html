@@ -657,6 +657,9 @@
             <tfoot><tr class="lines-total-row"><td colspan="3">Remaining to receive</td><td class="mono" id="po-recv-remaining-total" colspan="3">0</td></tr></tfoot>
           </table>
         </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+          <div id="po-recv-suffix-summary" style="min-width:220px;"></div>
+        </div>
         <div id="po-receipt-history" style="margin-top:16px;"></div>
       </fieldset>
     </div>
@@ -2925,6 +2928,41 @@
     document.getElementById("po-stat-outstanding").textContent = outstanding.toLocaleString("en-US");
     const footer = document.getElementById("po-recv-remaining-total");
     if (footer) footer.textContent = outstanding.toLocaleString("en-US");
+    updatePoRecvSuffixSummary(po);
+  }
+  // Whatever comes after the last "-" in a SKU — "-STK", "-STKV3", "-SCP", "-10", etc. — the
+  // product-type groupings used for tallying, not hardcoded to any specific set of suffixes.
+  function skuSuffix(sku){
+    const parts = String(sku||"").split("-");
+    return (parts[parts.length-1] || "").trim().toUpperCase() || "—";
+  }
+  // Ordered vs. received (so-far + whatever's typed into "Receive now" but not yet saved),
+  // totaled per SKU suffix — e.g. how many STKV3 vs STK vs SCP units in total, the breakdown
+  // used to sanity-check a shipment against the packing slip.
+  function updatePoRecvSuffixSummary(po){
+    const el = document.getElementById("po-recv-suffix-summary");
+    if (!el || !po) return;
+    const totals = {};
+    document.querySelectorAll("#po-receive-body tr").forEach(tr => {
+      const line = po.lines[Number(tr.dataset.idx)];
+      if (!line) return;
+      const it = itemById(line.itemId);
+      const suffix = skuSuffix(it ? it.sku : "");
+      const pendingQty = Math.max(0, Number(tr.querySelector(".recv-qty").value)||0);
+      if (!totals[suffix]) totals[suffix] = { ordered: 0, received: 0 };
+      totals[suffix].ordered += Number(line.qtyOrdered)||0;
+      totals[suffix].received += (Number(line.qtyReceived)||0) + pendingQty;
+    });
+    const keys = Object.keys(totals).sort();
+    if (keys.length === 0){ el.innerHTML = ""; return; }
+    el.innerHTML = `
+      <table style="width:100%;font-size:13px;">
+        <thead><tr><th style="text-align:left;font-weight:600;color:var(--ink-muted);padding-bottom:4px;">Type</th><th class="num" style="font-weight:600;color:var(--ink-muted);padding-bottom:4px;">Ordered</th><th class="num" style="font-weight:600;color:var(--ink-muted);padding-bottom:4px;">Received</th></tr></thead>
+        <tbody>
+          ${keys.map(k => `<tr><td>${esc(k)}</td><td class="num mono">${totals[k].ordered.toLocaleString("en-US")}</td><td class="num mono">${totals[k].received.toLocaleString("en-US")}</td></tr>`).join("")}
+        </tbody>
+      </table>
+    `;
   }
 
   function openPoDialog(id, prefill){
@@ -2958,8 +2996,8 @@
         ${po.receivedDate ? `<div><div class="k">Received</div><div class="v">${fmtDate(po.receivedDate)}</div></div>` : ""}
       `;
       document.getElementById("po-stat-tiles").style.display = "flex";
-      updatePoStatTiles(po);
       renderReceiveSection(po);
+      updatePoStatTiles(po);
 
       const statusActions = document.getElementById("po-status-actions");
       const actionBtns = [];
