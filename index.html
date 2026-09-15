@@ -1157,6 +1157,26 @@
     });
     return `${WORK_ORDER_FORM_BASE}?${params.toString()}`;
   }
+  // Same Google Form, but for an Event Planner output — the recipe is whatever the person
+  // actually entered for this build (not the app's auto-detected -STK/-STKV3 pair), so the
+  // input-SKU note lists every input at its own per-unit ratio directly from that recipe.
+  function buildPlannerWorkOrderFormUrl(outputLabel, qty, recipeRows){
+    const inputNote = recipeRows
+      .filter(r => r.ratio > 0)
+      .map(r => `${r.item.sku} - ${r.ratio} units`)
+      .join("\n");
+    const params = new URLSearchParams({
+      usp: "pp_url",
+      "entry.282147506": WORK_ORDER_WAREHOUSE,
+      "entry.1205671987": "Yes",
+      "entry.824867373": `${outputLabel} - ${qty} units`,
+      "entry.2088867355": inputNote,
+      "entry.1884097815": "None",
+      "entry.1608387938": WORK_ORDER_COMPANY,
+      "entry.1023426212": WORK_ORDER_REQUESTER_NAME
+    });
+    return `${WORK_ORDER_FORM_BASE}?${params.toString()}`;
+  }
 
   /* ============ create work order directly in Deposco ============ */
   // Calls the create-work-order Edge Function, which writes a real, open
@@ -2456,11 +2476,16 @@
           <div><div class="k">Max ${esc(outputLabel)} buildable</div><div class="v" style="font-weight:600;">${maxBuildable.toLocaleString("en-US")} units${bottleneck ? ` <span class="cell-sub">(limited by ${esc(bottleneck.item.sku)})</span>` : ""}</div></div>
           ${target > 0 ? `<div><div class="k">Target of ${target.toLocaleString("en-US")}</div><div class="v" style="${meetsTarget?"color:var(--ok);":"color:var(--critical);"}font-weight:600;">${meetsTarget ? "Achievable" : `Short by ${(target - maxBuildable).toLocaleString("en-US")}`}</div></div>` : ""}
         </div>
-        ${meetsTarget ? (canSubmit ? `
+        ${target > 0 && withRatio.length > 0 ? `
         <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px;flex-wrap:wrap;">
-          <button type="button" class="btn btn-primary planner-submit-wo">Submit Work Order →</button>
-          <span class="hint">Creates a real work order in Deposco for "${esc(outputLabel)}" — the name above must match an existing Deposco kit exactly, or it'll be rejected there. You'll review the details before anything sends.</span>
-        </div>` : `<p class="hint" style="margin:14px 0 4px;">Name this output above to enable submitting a work order for it.</p>`) : ""}
+          <a class="btn" href="${esc(buildPlannerWorkOrderFormUrl(outputLabel, target, withRatio))}" target="_blank" rel="noopener">Request Work Order</a>
+          ${canSubmit ? `<button type="button" class="btn btn-primary planner-submit-wo">Submit Work Order →</button>` : ""}
+          <span class="hint">${canSubmit
+            ? `"Request" opens Launch's form pre-filled, to review and send yourself. "Submit" creates it directly in Deposco for "${esc(outputLabel)}" — the name above must match an existing Deposco kit exactly, or it'll be rejected there. Either way you review before anything sends.`
+            : meetsTarget
+              ? `Name this output above to also enable submitting it directly to Deposco.`
+              : `"Request Work Order" opens Launch's form pre-filled with this recipe, to review and send yourself — works even before the target's fully met. Direct Deposco submission unlocks once every input shows no shortfall.`}</span>
+        </div>` : ""}
         <div class="table-wrap"><table>
           <thead><tr>
             <th>Input SKU</th>
