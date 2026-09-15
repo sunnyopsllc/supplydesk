@@ -145,6 +145,14 @@
   }
   .nav button.active .count{ background:var(--surface); border-color:var(--line-strong); }
   .nav button.attn .count{ background:var(--critical); border-color:var(--critical); color:#fff; }
+  .nav-sub{ display:flex; flex-direction:column; gap:1px; margin:0 0 2px 26px; }
+  .nav-sub button{
+    display:block; width:100%; background:none; border:none; text-align:left;
+    padding:6px 8px; border-radius:6px; font-size:13px; color:var(--ink-faint);
+    cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .nav-sub button:hover{ background:var(--surface); color:var(--ink); }
+  .nav-sub button.active{ background:var(--accent-soft); color:var(--accent-ink); font-weight:600; }
 
   .sidebar-foot{ margin-top:auto; padding:0 8px; display:flex; flex-direction:column; gap:6px; }
   .save-indicator{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-faint); }
@@ -410,6 +418,7 @@
       <button data-view="pos"><span class="ic">⇄</span>Purchase Orders<span class="count" id="nav-count-pos">0</span></button>
       <button data-view="vendors"><span class="ic">✎</span>Vendors<span class="count" id="nav-count-vendors">0</span></button>
       <button data-view="planner"><span class="ic">◫</span>Event Planner</button>
+      <div id="nav-planner-plans" class="nav-sub"></div>
     </nav>
     <div class="sidebar-foot">
       <div class="save-indicator" id="save-indicator"><span class="dot"></span><span class="txt" id="save-text">Loading…</span></div>
@@ -880,12 +889,27 @@
   const LS_KEY = "supply-desk-state-v1"; // last-resort fallback only, when shared storage can't be reached
 
   function defaultState(){
-    return { items:[], vendors:[], pos:[], kits:[], counters:{ item:1, vendor:1, po:1, kit:1 }, meta:{}, planner:{ eventDate:"", reserveDays:45, builds:[] } };
+    return { items:[], vendors:[], pos:[], kits:[], counters:{ item:1, vendor:1, po:1, kit:1 }, meta:{}, plannerPlans:[] };
+  }
+  function normalizePlannerPlan(p){
+    return {
+      id: (p && p.id) || ("plan-" + Math.random().toString(36).slice(2)),
+      name: (p && typeof p.name === "string") ? p.name : "",
+      eventDate: (p && typeof p.eventDate === "string") ? p.eventDate : "",
+      reserveDays: (p && Number.isFinite(Number(p.reserveDays))) ? Number(p.reserveDays) : 45,
+      updatedAt: (p && typeof p.updatedAt === "string") ? p.updatedAt : "",
+      builds: (p && Array.isArray(p.builds)) ? p.builds.map(b => ({
+        id: (b && b.id) || ("build-" + Math.random().toString(36).slice(2)),
+        outputName: (b && typeof b.outputName === "string") ? b.outputName : "",
+        outputQty: (b && Number(b.outputQty)) || 0,
+        selected: (b && Array.isArray(b.selected)) ? b.selected : [],
+        ratios: (b && b.ratios && typeof b.ratios === "object") ? b.ratios : {}
+      })) : []
+    };
   }
   function normalizeState(s){
     const d = defaultState();
     if (!s || typeof s !== "object") return d;
-    const p = (s.planner && typeof s.planner === "object") ? s.planner : {};
     return {
       items: Array.isArray(s.items) ? s.items : [],
       vendors: Array.isArray(s.vendors) ? s.vendors : [],
@@ -893,19 +917,10 @@
       kits: Array.isArray(s.kits) ? s.kits : [],
       counters: Object.assign({}, d.counters, s.counters || {}),
       meta: Object.assign({}, d.meta, (s.meta && typeof s.meta === "object") ? s.meta : {}),
-      // Saved Event Planner progress — `selected` is stored as a plain array (JSON has no Set),
-      // converted back to a real Set when hydrated into the live, in-memory `plannerState`.
-      planner: {
-        eventDate: typeof p.eventDate === "string" ? p.eventDate : "",
-        reserveDays: Number.isFinite(Number(p.reserveDays)) ? Number(p.reserveDays) : 45,
-        builds: Array.isArray(p.builds) ? p.builds.map(b => ({
-          id: (b && b.id) || ("build-" + Math.random().toString(36).slice(2)),
-          outputName: (b && typeof b.outputName === "string") ? b.outputName : "",
-          outputQty: (b && Number(b.outputQty)) || 0,
-          selected: (b && Array.isArray(b.selected)) ? b.selected : [],
-          ratios: (b && b.ratios && typeof b.ratios === "object") ? b.ratios : {}
-        })) : []
-      }
+      // Saved Event Planner plans — each one named, listed as its own sub-item under Event
+      // Planner in the sidebar. `selected` is stored as a plain array (JSON has no Set),
+      // converted back to a real Set when a plan is loaded into the live `plannerState`.
+      plannerPlans: Array.isArray(s.plannerPlans) ? s.plannerPlans.map(normalizePlannerPlan) : []
     };
   }
 
@@ -1599,6 +1614,31 @@
     const invBtn = document.querySelector('.nav button[data-view="inventory"]');
     invBtn.classList.toggle("attn", lowCount > 0);
     if (lowCount > 0) document.getElementById("nav-count-inventory").textContent = lowCount + " low";
+    renderPlannerNavSub();
+  }
+  // Saved plans, one sub-item each under Event Planner, plus "+ New plan". Clicking a plan
+  // loads it into plannerState and switches to that view — clicking it again from elsewhere
+  // in the app (e.g. after a commit() from an unrelated edit) just re-renders the same list.
+  function renderPlannerNavSub(){
+    const el = document.getElementById("nav-planner-plans");
+    if (!el) return;
+    const plans = state.plannerPlans.slice().sort((a,b) => (a.name||"").localeCompare(b.name||""));
+    const openId = plannerState ? plannerState.id : null;
+    el.innerHTML = plans.map(p => `<button type="button" class="nav-plan${p.id === openId && currentView === "planner" ? " active" : ""}" data-id="${p.id}">${esc(p.name || "Untitled plan")}</button>`).join("")
+      + `<button type="button" class="nav-plan" id="nav-planner-new">+ New plan</button>`;
+    el.querySelectorAll(".nav-plan[data-id]").forEach(btn => {
+      btn.onclick = () => {
+        loadPlannerPlan(btn.dataset.id);
+        switchView("planner");
+        renderPlannerNavSub();
+      };
+    });
+    const newBtn = document.getElementById("nav-planner-new");
+    if (newBtn) newBtn.onclick = () => {
+      plannerState = newPlannerPlanState();
+      switchView("planner");
+      renderPlannerNavSub();
+    };
   }
 
   function renderPageChrome(){
@@ -2095,61 +2135,93 @@
   /* ============ vendors ============ */
   let vendorFilter = { q:"" };
   // Event planner is a what-if calculator that recomputes live from whatever's currently on
-  // hand/on order — but its inputs (event date, reserve days, each build's name/qty/recipe)
-  // are saved to app_state.planner so progress survives a reload, same as everything else.
-  // `builds` is a stack — each output can compete for the same -STK/-STKV3 supply as the ones
-  // before it, and earlier builds get first claim (see the allocation pool in the planner
-  // section below).
-  let plannerState = { eventDate: "", reserveDays: 45, builds: [] };
+  // hand/on order. Plans are named and saved explicitly — a Save button, not auto-save, after
+  // an earlier auto-save design turned out to silently do nothing when a tab stayed open
+  // across a code update. Each saved plan is its own sub-item under Event Planner in the
+  // sidebar, so several can exist side by side without overwriting one another.
+  let plannerState = null; // the plan currently open for editing — set by boot() before first render
   let plannerBuildSeq = 0;
+  let plannerPlanSeq = 0;
   function newPlannerBuild(){
     plannerBuildSeq += 1;
     return { id: "build-" + plannerBuildSeq, outputName: "", outputQty: 0, selected: new Set(), ratios: {} };
   }
-  // Runs once at boot, restoring plannerState (with `selected` converted back from a plain
-  // array into a real Set) from whatever was last saved — never re-run on a later realtime
-  // update, so an edit on another device/tab doesn't reset progress mid-session here.
-  function hydratePlannerState(){
-    const saved = (state.planner && typeof state.planner === "object") ? state.planner : defaultState().planner;
+  // A fresh, unsaved plan — has no id until Save is clicked the first time.
+  function newPlannerPlanState(){
+    return { id: null, name: "", eventDate: "", reserveDays: 45, builds: [newPlannerBuild()] };
+  }
+  // Converts one saved plan (state.plannerPlans, JSON-safe) into the live editing shape —
+  // each build's `selected` becomes a real Set again.
+  function loadPlannerPlan(id){
+    const saved = state.plannerPlans.find(p => p.id === id);
+    if (!saved) return;
     plannerState = {
+      id: saved.id,
+      name: saved.name || "",
       eventDate: saved.eventDate || "",
       reserveDays: Number(saved.reserveDays) || 45,
-      builds: (saved.builds || []).map(b => ({
-        id: b.id,
+      builds: (saved.builds.length ? saved.builds : [{}]).map(b => ({
+        id: b.id || ("build-" + (++plannerBuildSeq)),
         outputName: b.outputName || "",
         outputQty: Number(b.outputQty) || 0,
         selected: new Set(b.selected || []),
         ratios: Object.assign({}, b.ratios || {})
       }))
     };
-    // keep future auto-generated ids from colliding with restored ones
-    let maxSeq = 0;
     plannerState.builds.forEach(b => {
       const m = /^build-(\d+)$/.exec(b.id || "");
+      if (m) plannerBuildSeq = Math.max(plannerBuildSeq, Number(m[1]));
+    });
+  }
+  // Explicit save — nothing about the planner reaches app_state except through this. Assigns
+  // the plan an id the first time; every later save updates that same sidebar entry in place.
+  function savePlannerPlan(){
+    if (!plannerState.id){
+      plannerPlanSeq += 1;
+      plannerState.id = "plan-" + plannerPlanSeq;
+    }
+    const serialized = {
+      id: plannerState.id,
+      name: plannerState.name.trim() || "Untitled plan",
+      eventDate: plannerState.eventDate,
+      reserveDays: plannerState.reserveDays,
+      updatedAt: new Date().toISOString(),
+      builds: plannerState.builds.map(b => ({
+        id: b.id,
+        outputName: b.outputName,
+        outputQty: b.outputQty,
+        selected: Array.from(b.selected),
+        ratios: b.ratios
+      }))
+    };
+    const idx = state.plannerPlans.findIndex(p => p.id === plannerState.id);
+    if (idx >= 0) state.plannerPlans[idx] = serialized;
+    else state.plannerPlans.push(serialized);
+    commit();
+    showToast(`Saved "${serialized.name}".`);
+  }
+  function deletePlannerPlan(id){
+    state.plannerPlans = state.plannerPlans.filter(p => p.id !== id);
+    if (plannerState && plannerState.id === id) plannerState = newPlannerPlanState();
+    commit();
+  }
+  // Runs once at boot: opens the most recently saved plan if any exist, otherwise starts a
+  // fresh unsaved one — and keeps future auto-generated plan ids from colliding with restored
+  // ones. Never re-run on a later realtime update, so an edit on another device/tab doesn't
+  // reset the plan being worked on here mid-session.
+  function initPlannerPlans(){
+    let maxSeq = 0;
+    (state.plannerPlans || []).forEach(p => {
+      const m = /^plan-(\d+)$/.exec(p.id || "");
       if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
     });
-    plannerBuildSeq = maxSeq;
-  }
-  // Debounced so continuous typing (a ratio, an output qty) doesn't write on every keystroke —
-  // saves ~1s after the last edit. Converts each build's `selected` Set to a plain array, the
-  // only part of plannerState that isn't already JSON-safe.
-  let plannerSaveTimer = null;
-  function schedulePlannerSave(){
-    clearTimeout(plannerSaveTimer);
-    plannerSaveTimer = setTimeout(() => {
-      state.planner = {
-        eventDate: plannerState.eventDate,
-        reserveDays: plannerState.reserveDays,
-        builds: plannerState.builds.map(b => ({
-          id: b.id,
-          outputName: b.outputName,
-          outputQty: b.outputQty,
-          selected: Array.from(b.selected),
-          ratios: b.ratios
-        }))
-      };
-      persist();
-    }, 800);
+    plannerPlanSeq = maxSeq;
+    if (state.plannerPlans.length > 0){
+      const mostRecent = state.plannerPlans.slice().sort((a,b) => (b.updatedAt||"").localeCompare(a.updatedAt||""))[0];
+      loadPlannerPlan(mostRecent.id);
+    } else {
+      plannerState = newPlannerPlanState();
+    }
   }
   function renderVendors(){
     const root = document.getElementById("view-vendors");
@@ -2258,13 +2330,18 @@
   }
   function renderPlanner(){
     const root = document.getElementById("view-planner");
+    if (!plannerState) plannerState = newPlannerPlanState();
     if (plannerState.builds.length === 0) plannerState.builds.push(newPlannerBuild());
     root.innerHTML = `
       <div class="panel">
         <div class="panel-body" style="padding:16px 18px;">
           <div style="font-size:12px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;">Event build planner</div>
-          <p class="hint" style="max-width:70ch;">A what-if calculator — your progress is saved automatically. Stack as many outputs as you need: each one below competes for the same -STK/-STKV3 supply as the ones above it, so adding a second output shows what's actually left over after the first one's needs are already spoken for — not the same pool double-counted.</p>
+          <p class="hint" style="max-width:70ch;">A what-if calculator. Nothing is saved until you hit "Save plan" — it'll then show up under Event Planner in the sidebar, so you can build several without losing any. Stack as many outputs as you need: each one below competes for the same -STK/-STKV3 supply as the ones above it, so adding a second output shows what's actually left over after the first one's needs are already spoken for — not the same pool double-counted.</p>
           <div class="field-grid" style="margin-top:12px;">
+            <div class="field">
+              <label for="planner-plan-name">Plan name</label>
+              <input id="planner-plan-name" placeholder="e.g. Black Friday 2026" value="${esc(plannerState.name)}">
+            </div>
             <div class="field">
               <label for="planner-event-date">Event date</label>
               <input type="date" id="planner-event-date" value="${esc(plannerState.eventDate)}">
@@ -2274,6 +2351,10 @@
               <input type="number" id="planner-reserve-days" min="0" step="1" value="${Number(plannerState.reserveDays)||0}">
             </div>
           </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:14px;">
+            <button type="button" class="btn btn-primary" id="planner-save">Save plan</button>
+            ${plannerState.id ? `<button type="button" class="btn btn-quiet" id="planner-delete" style="color:var(--critical);">Delete this plan</button>` : ""}
+          </div>
         </div>
       </div>
 
@@ -2281,12 +2362,19 @@
       <button type="button" class="btn" id="planner-add-build" style="margin-bottom:32px;">+ Add another output</button>
     `;
 
-    document.getElementById("planner-event-date").oninput = e => { plannerState.eventDate = e.target.value; renderAllPlannerResults(); schedulePlannerSave(); };
-    document.getElementById("planner-reserve-days").oninput = e => { plannerState.reserveDays = Math.max(0, Number(e.target.value)||0); renderAllPlannerResults(); schedulePlannerSave(); };
+    document.getElementById("planner-plan-name").oninput = e => { plannerState.name = e.target.value; };
+    document.getElementById("planner-event-date").oninput = e => { plannerState.eventDate = e.target.value; renderAllPlannerResults(); };
+    document.getElementById("planner-reserve-days").oninput = e => { plannerState.reserveDays = Math.max(0, Number(e.target.value)||0); renderAllPlannerResults(); };
     document.getElementById("planner-add-build").onclick = () => {
       plannerState.builds.push(newPlannerBuild());
       renderPlannerBuilds();
-      schedulePlannerSave();
+    };
+    document.getElementById("planner-save").onclick = () => savePlannerPlan();
+    const delBtn = document.getElementById("planner-delete");
+    if (delBtn) delBtn.onclick = async () => {
+      const yes = await confirmDialog("Delete this plan?", `"${plannerState.name || "Untitled plan"}" will be permanently removed.`);
+      if (!yes) return;
+      deletePlannerPlan(plannerState.id);
     };
     renderPlannerBuilds();
   }
@@ -2334,7 +2422,6 @@
       btn.onclick = () => {
         plannerState.builds = plannerState.builds.filter(b => b.id !== btn.dataset.buildId);
         renderPlannerBuilds();
-        schedulePlannerSave();
       };
     });
     container.querySelectorAll(".planner-output-name").forEach(inp => {
@@ -2342,7 +2429,6 @@
         const b = plannerState.builds.find(x => x.id === inp.dataset.buildId);
         if (b) b.outputName = inp.value;
         renderAllPlannerResults();
-        schedulePlannerSave();
       };
     });
     container.querySelectorAll(".planner-output-qty").forEach(inp => {
@@ -2350,7 +2436,6 @@
         const b = plannerState.builds.find(x => x.id === inp.dataset.buildId);
         if (b) b.outputQty = Math.max(0, Number(inp.value)||0);
         renderAllPlannerResults();
-        schedulePlannerSave();
       };
     });
     container.querySelectorAll(".planner-search").forEach(inp => {
@@ -2429,7 +2514,6 @@
         if (countEl) countEl.textContent = `${build.selected.size} selected`;
         renderPlannerChips(buildId);
         renderPlannerRecipe(buildId);
-        schedulePlannerSave();
       });
     });
   }
@@ -2451,7 +2535,6 @@
         if (countEl) countEl.textContent = `${build.selected.size} selected`;
         renderPlannerChips(buildId);
         renderPlannerRecipe(buildId);
-        schedulePlannerSave();
       };
     });
   }
@@ -2481,7 +2564,7 @@
       </table></div>
     `;
     panel.querySelectorAll(".planner-ratio").forEach(inp => {
-      inp.oninput = () => { build.ratios[inp.dataset.id] = Math.max(0, Number(inp.value)||0); renderAllPlannerResults(); schedulePlannerSave(); };
+      inp.oninput = () => { build.ratios[inp.dataset.id] = Math.max(0, Number(inp.value)||0); renderAllPlannerResults(); };
     });
     renderAllPlannerResults();
   }
@@ -2604,6 +2687,7 @@
   function switchView(view){
     currentView = view;
     document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("active", b.dataset.view === view));
+    renderPlannerNavSub();
     renderPageChrome();
     renderView();
   }
@@ -4196,7 +4280,7 @@
   async function boot(){
     renderAll();
     await subscribeState();
-    hydratePlannerState();
+    initPlannerPlans();
     renderAll();
 
     // standing cleanup rules: remove items that violate an exclusion rule even if they made it
