@@ -902,6 +902,7 @@
         id: (b && b.id) || ("build-" + Math.random().toString(36).slice(2)),
         outputName: (b && typeof b.outputName === "string") ? b.outputName : "",
         outputQty: (b && Number(b.outputQty)) || 0,
+        isNewSku: !!(b && b.isNewSku),
         selected: (b && Array.isArray(b.selected)) ? b.selected : [],
         ratios: (b && b.ratios && typeof b.ratios === "object") ? b.ratios : {}
       })) : []
@@ -1189,12 +1190,26 @@
   // Same Google Form, but for an Event Planner output — the recipe is whatever the person
   // actually entered for this build (not the app's auto-detected -STK/-STKV3 pair), so the
   // input-SKU note lists every input at its own per-unit ratio directly from that recipe.
-  function buildPlannerWorkOrderFormUrl(outputLabel, qty, recipeRows){
+  // isNewSku picks which branch of the form to pre-fill — the "Have we done a Work Order for
+  // the Specific Output SKU before?" question on page 1 shows an entirely different set of
+  // follow-up questions (and different entry IDs) depending on Yes/No, since "No" walks through
+  // a first-time setup instead of the short recurring-kit form. Both branches' entry IDs were
+  // pulled from the form's own FB_PUBLIC_LOAD_DATA_ (see [[work-order-request-form]] memory).
+  function buildPlannerWorkOrderFormUrl(outputLabel, qty, recipeRows, isNewSku){
     const inputNote = recipeRows
       .filter(r => r.ratio > 0)
       .map(r => `${r.item.sku} - ${r.ratio} units`)
       .join("\n");
-    const params = new URLSearchParams({
+    const params = isNewSku ? new URLSearchParams({
+      usp: "pp_url",
+      "entry.282147506": WORK_ORDER_WAREHOUSE,
+      "entry.1205671987": "No",
+      "entry.967112212": `${outputLabel} - ${qty} units`,          // Output SKU and QTY
+      "entry.1000027": inputNote,                                  // Input SKUs and QTY
+      "entry.2055232012": "None",                                  // Assembly instructions
+      "entry.1497981188": WORK_ORDER_COMPANY,                      // Company Name
+      "entry.133311980": WORK_ORDER_REQUESTER_NAME                 // Your Name
+    }) : new URLSearchParams({
       usp: "pp_url",
       "entry.282147506": WORK_ORDER_WAREHOUSE,
       "entry.1205671987": "Yes",
@@ -2144,7 +2159,7 @@
   let plannerPlanSeq = 0;
   function newPlannerBuild(){
     plannerBuildSeq += 1;
-    return { id: "build-" + plannerBuildSeq, outputName: "", outputQty: 0, selected: new Set(), ratios: {} };
+    return { id: "build-" + plannerBuildSeq, outputName: "", outputQty: 0, isNewSku: false, selected: new Set(), ratios: {} };
   }
   // A fresh, unsaved plan — has no id until Save is clicked the first time.
   function newPlannerPlanState(){
@@ -2164,6 +2179,7 @@
         id: b.id || ("build-" + (++plannerBuildSeq)),
         outputName: b.outputName || "",
         outputQty: Number(b.outputQty) || 0,
+        isNewSku: !!b.isNewSku,
         selected: new Set(b.selected || []),
         ratios: Object.assign({}, b.ratios || {})
       }))
@@ -2190,6 +2206,7 @@
         id: b.id,
         outputName: b.outputName,
         outputQty: b.outputQty,
+        isNewSku: !!b.isNewSku,
         selected: Array.from(b.selected),
         ratios: b.ratios
       }))
@@ -2400,6 +2417,10 @@
               <input type="number" class="planner-output-qty" data-build-id="${b.id}" min="0" step="1" value="${b.outputQty || ""}">
             </div>
           </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-muted);margin-top:10px;">
+            <input type="checkbox" class="planner-is-new" data-build-id="${b.id}" ${b.isNewSku ? "checked" : ""}>
+            This is a brand new SKU — no work order has been done for it before
+          </label>
           <div style="margin-top:14px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
               <div style="font-size:12px;font-weight:600;color:var(--ink-muted);">Input SKUs</div>
@@ -2435,6 +2456,13 @@
       inp.oninput = () => {
         const b = plannerState.builds.find(x => x.id === inp.dataset.buildId);
         if (b) b.outputQty = Math.max(0, Number(inp.value)||0);
+        renderAllPlannerResults();
+      };
+    });
+    container.querySelectorAll(".planner-is-new").forEach(cb => {
+      cb.onchange = () => {
+        const b = plannerState.builds.find(x => x.id === cb.dataset.buildId);
+        if (b) b.isNewSku = cb.checked;
         renderAllPlannerResults();
       };
     });
@@ -2630,8 +2658,8 @@
         </div>
         ${target > 0 && withRatio.length > 0 ? `
         <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px;flex-wrap:wrap;">
-          <a class="btn btn-primary" href="${esc(buildPlannerWorkOrderFormUrl(outputLabel, target, withRatio))}" target="_blank" rel="noopener">Submit Work Order →</a>
-          <span class="hint">Opens Launch's form pre-filled with this output and recipe, to review and send yourself — works even before the target's fully met.</span>
+          <a class="btn btn-primary" href="${esc(buildPlannerWorkOrderFormUrl(outputLabel, target, withRatio, build.isNewSku))}" target="_blank" rel="noopener">Submit Work Order →</a>
+          <span class="hint">Opens Launch's form pre-filled with this output and recipe, to review and send yourself — works even before the target's fully met. Answers "${build.isNewSku ? "No" : "Yes"}" to "Have we done a Work Order for this SKU before?" based on the checkbox above.</span>
         </div>` : ""}
         <div class="table-wrap"><table>
           <thead><tr>
