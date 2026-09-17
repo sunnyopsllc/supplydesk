@@ -1024,7 +1024,12 @@
   }
   function fmtDate(iso){
     if (!iso) return "—";
-    const d = new Date(iso + "T00:00:00");
+    // Accepts either a bare "YYYY-MM-DD" or a full ISO datetime (Deposco sends dueDate as the
+    // latter, e.g. "2026-09-21T00:00:00-05:00") — take just the date portion either way, since
+    // appending our own time suffix onto an already-full datetime produced an invalid date and
+    // silently fell back to "—" for every Deposco-sourced date.
+    const datePart = String(iso).slice(0, 10);
+    const d = new Date(datePart + "T00:00:00");
     if (isNaN(d)) return "—";
     return d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
   }
