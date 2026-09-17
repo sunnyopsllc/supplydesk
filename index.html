@@ -3571,12 +3571,36 @@
       <div class="hint" style="margin-top:4px;">Recent kits</div>
       <div class="table-wrap" style="max-height:160px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;">
         <table>
-          <thead><tr><th>Date</th><th>Consumed</th><th>Produced</th></tr></thead>
+          <thead><tr><th>Date</th><th>Consumed</th><th>Produced</th><th></th></tr></thead>
           <tbody>
-            ${recent.map(k => `<tr><td>${fmtDate(k.date)}</td><td class="mono">${k.componentQtyConsumed} ${esc(k.componentSku)}</td><td class="mono">${k.finishedQtyProduced} ${esc(k.finishedSku)}</td></tr>`).join("")}
+            ${recent.map(k => `<tr><td>${fmtDate(k.date)}</td><td class="mono">${k.componentQtyConsumed} ${esc(k.componentSku)}</td><td class="mono">${k.finishedQtyProduced} ${esc(k.finishedSku)}</td><td class="actions"><button type="button" class="btn btn-sm" data-act="undo-kit" data-id="${k.id}">Undo</button></td></tr>`).join("")}
           </tbody>
         </table>
       </div>`;
+    el.querySelectorAll('[data-act="undo-kit"]').forEach(btn => {
+      btn.onclick = () => undoKit(btn.dataset.id);
+    });
+  }
+  // Reverses one "Build kit" entry: gives the consumed component qty back, takes the produced
+  // finished qty back out, and removes it from history — for when a kit was logged by mistake
+  // (wrong SKU, wrong qty, or just clicked without meaning to).
+  async function undoKit(kitId){
+    const kit = state.kits.find(k => k.id === kitId);
+    if (!kit) return;
+    const component = itemById(kit.componentItemId);
+    const finished = itemById(kit.finishedItemId);
+    const yes = await confirmDialog(
+      "Undo this kit?",
+      `Adds ${kit.componentQtyConsumed} back to ${component ? component.sku : kit.componentSku} and removes ${kit.finishedQtyProduced} from ${finished ? finished.sku : kit.finishedSku}. This can't be undone.`
+    );
+    if (!yes) return;
+    if (component) component.qty = (Number(component.qty)||0) + kit.componentQtyConsumed;
+    if (finished) finished.qty = (Number(finished.qty)||0) - kit.finishedQtyProduced;
+    state.kits = state.kits.filter(k => k.id !== kitId);
+    showToast(`Undid kit — ${component ? component.sku : kit.componentSku} and ${finished ? finished.sku : kit.finishedSku} updated.`);
+    commit();
+    renderKitSummary();
+    renderKitHistory();
   }
   ["in-kit-component","in-kit-finished","in-kit-ratio","in-kit-qty"].forEach(id => {
     document.getElementById(id).addEventListener("input", renderKitSummary);
