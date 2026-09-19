@@ -659,7 +659,11 @@
           <label for="po-recv-date">Date received</label>
           <input type="date" id="po-recv-date">
         </div>
-        <div class="table-wrap">
+        <div class="field" style="max-width:320px;margin:0 0 10px;">
+          <label for="po-recv-filter">Find item</label>
+          <input type="search" id="po-recv-filter" placeholder="Type a SKU or name to jump to it…">
+        </div>
+        <div class="table-wrap" style="max-height:360px;overflow-y:auto;">
           <table class="lines-table">
             <thead><tr><th style="width:26%">Item</th><th style="width:12%">Ordered</th><th style="width:14%">Received so far</th><th style="width:14%">Remaining</th><th style="width:16%">Receive now</th><th style="width:18%">Lot #</th></tr></thead>
             <tbody id="po-receive-body"></tbody>
@@ -3062,6 +3066,7 @@
       return;
     }
     fs.hidden = false;
+    document.getElementById("po-recv-filter").value = "";
     document.getElementById("po-recv-date").value = todayISO();
     const body = document.getElementById("po-receive-body");
     body.innerHTML = po.lines.map((line, idx) => {
@@ -3071,7 +3076,7 @@
       const over = receivedSoFar - ordered;
       const remaining = Math.max(0, ordered - receivedSoFar);
       return `<tr data-idx="${idx}">
-        <td>${it ? esc(it.name) : '<span class="cell-sub">Deleted item</span>'}</td>
+        <td>${it ? esc(it.name) + `<div class="cell-sub mono">${esc(it.sku)}</div>` : '<span class="cell-sub">Deleted item</span>'}</td>
         <td class="mono">${ordered}</td>
         <td class="mono">${receivedSoFar}${over > 0 ? ` <span class="pill pill-warn">+${over} over</span>` : ""}</td>
         <td class="mono" data-remaining="${remaining}">${remaining}</td>
@@ -3116,6 +3121,12 @@
   // yet saved — so the tiles reflect what you're about to record, not just what's already on
   // file. Overage (received beyond what was ordered) is allowed and just floors outstanding
   // at 0 rather than going negative.
+  document.getElementById("po-recv-filter").addEventListener("input", e => {
+    const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll("#po-receive-body tr").forEach(tr => {
+      tr.style.display = !q || tr.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  });
   function updatePoStatTiles(po){
     if (!po) return;
     const ordered = poOrderedTotal(po);
@@ -3203,10 +3214,17 @@
 
       const statusActions = document.getElementById("po-status-actions");
       const actionBtns = [];
+      if (po.status !== "draft" && po.status !== "cancelled") actionBtns.push(`<button type="button" class="btn btn-primary" id="po-jump-receive">Receive shipment ↓</button>`);
       if (po.status === "draft") actionBtns.push(`<button type="button" class="btn" id="po-mark-sent">Mark as sent</button>`);
       if (po.status !== "cancelled" && po.status !== "received") actionBtns.push(`<button type="button" class="btn btn-danger" id="po-cancel">Cancel PO</button>`);
       if (po.status === "draft") actionBtns.push(`<button type="button" class="btn btn-danger" id="po-delete">Delete</button>`);
       statusActions.innerHTML = actionBtns.join("");
+      const jumpBtn = document.getElementById("po-jump-receive");
+      if (jumpBtn) jumpBtn.onclick = () => {
+        const fs = document.getElementById("po-receive-fieldset");
+        fs.scrollIntoView({ behavior:"smooth", block:"start" });
+        document.getElementById("po-recv-filter").focus({ preventScroll:true });
+      };
       const msBtn = document.getElementById("po-mark-sent");
       if (msBtn) msBtn.onclick = () => { po.status = "sent"; document.getElementById("dlg-po").close(); commit(); };
       const cancelBtn = document.getElementById("po-cancel");
