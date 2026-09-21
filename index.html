@@ -2663,14 +2663,9 @@
     if (!panel) return;
     const selectedItems = state.items.filter(i => build.selected.has(i.id));
     if (selectedItems.length === 0){
-      panel.innerHTML = `<div class="panel-empty">Pick at least one -STK/-STKV3 SKU above to build a recipe.</div>`;
+      panel.innerHTML = `<div class="panel-empty">Load an existing SKU's bill of material, or pick input SKUs above, to see if this output is feasible.</div>`;
       return;
     }
-    if (!plannerState.eventDate){
-      panel.innerHTML = `<div class="panel-empty">Set an event date above — incoming purchase orders only count if they're due by then.</div>`;
-      return;
-    }
-
     const rows = selectedItems.map(item => {
       const base = getBase(item);
       const ratio = build.ratios[item.id] || 0;
