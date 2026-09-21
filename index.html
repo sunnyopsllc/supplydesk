@@ -2416,6 +2416,11 @@
           ${plannerState.builds.length > 1 ? `<button type="button" class="btn btn-sm btn-quiet planner-remove-build" data-build-id="${b.id}">Remove</button>` : ""}
         </div>
         <div class="panel-body">
+          <div class="field" style="max-width:420px;margin-bottom:14px;">
+            <label>Load an existing SKU's bill of material</label>
+            <input type="text" class="planner-bom-lookup" data-build-id="${b.id}" list="dl-planner-bom" autocomplete="off" placeholder="Type a SKU, e.g. BG-NON-VARTY-30…">
+            <div class="hint" style="font-size:11.5px;">Fills in the inputs and per-unit recipe from that SKU's BOM — then just enter how many you want.</div>
+          </div>
           <div class="field-grid">
             <div class="field">
               <label>Name this output</label>
@@ -2448,6 +2453,32 @@
       <div class="panel planner-results" data-build-id="${b.id}" style="margin-bottom:24px;"></div>
     `).join("");
 
+    container.insertAdjacentHTML("afterbegin", `<datalist id="dl-planner-bom">${
+      state.items.filter(i => Array.isArray(i.bom) && i.bom.length).sort((a,b) => a.sku.localeCompare(b.sku))
+        .map(i => `<option value="${esc(i.sku)}">${esc(i.name)}</option>`).join("")
+    }</datalist>`);
+    container.querySelectorAll(".planner-bom-lookup").forEach(inp => {
+      inp.addEventListener("change", () => {
+        const b = plannerState.builds.find(x => x.id === inp.dataset.buildId);
+        const typed = inp.value.trim().toLowerCase();
+        const it = state.items.find(i => (i.sku||"").toLowerCase() === typed);
+        if (!b || !it) return;
+        if (!Array.isArray(it.bom) || !it.bom.length){
+          showToast(`${it.sku} has no bill of material saved — add one on the item first.`, true);
+          return;
+        }
+        const comps = it.bom.filter(l => itemById(l.componentId));
+        b.outputName = it.sku;
+        b.isNewSku = false;
+        b.selected = new Set(comps.map(l => l.componentId));
+        b.ratios = {};
+        comps.forEach(l => { b.ratios[l.componentId] = Number(l.qty)||0; });
+        if (comps.length < it.bom.length) showToast("Some components in that BOM no longer exist and were skipped.", true);
+        renderPlannerBuilds();
+        const qtyInp = document.querySelector(`.planner-output-qty[data-build-id="${b.id}"]`);
+        if (qtyInp) qtyInp.focus();
+      });
+    });
     container.querySelectorAll(".planner-remove-build").forEach(btn => {
       btn.onclick = () => {
         plannerState.builds = plannerState.builds.filter(b => b.id !== btn.dataset.buildId);
