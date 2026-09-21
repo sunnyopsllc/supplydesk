@@ -2332,8 +2332,15 @@
   // never the component's own, which components don't carry). Shared across every build in the
   // stack, computed once per input per render pass.
   function plannerComputeBase(item, eventDateISO, reserveDays){
-    const onHand = Number(item.qty) || 0;
-    const incoming = plannerIncomingQty(item, eventDateISO);
+    // -STK and -STKV3 of the same flavor are the same physical stick and freely interchangeable
+    // when kitting, so they're pooled — whichever one the recipe names, the planner counts both.
+    const isKitComponent = /-(stk|stkv3)$/i.test(item.sku);
+    const stkVariant = findKitVariant(item.sku, "stk");
+    const stkv3Variant = findKitVariant(item.sku, "stkv3");
+    const members = isKitComponent ? [stkVariant, stkv3Variant].filter(Boolean) : [item];
+    const poolKey = isKitComponent ? "grp:" + stripKitSuffix(item.sku).toLowerCase() : item.id;
+    const onHand = members.reduce((n, m) => n + (Number(m.qty)||0), 0);
+    const incoming = members.reduce((n, m) => n + plannerIncomingQty(m, eventDateISO), 0);
     const supply = onHand + incoming;
 
     const tenItem = correlatingTenItem(item);
@@ -2343,8 +2350,6 @@
     const reserveTenPacks = Math.max(0, reserveTenPacksTotal - reserveTenPacksCoveredByStock);
     const reserve = reserveTenPacks * KIT_COMPONENT_RATIO;
 
-    const stkVariant = findKitVariant(item.sku, "stk");
-    const stkv3Variant = findKitVariant(item.sku, "stkv3");
     const combinedOnHand = (Number(stkVariant?.qty)||0) + (Number(stkv3Variant?.qty)||0);
     const combinedBuildableTenPacks = Math.floor(combinedOnHand / KIT_COMPONENT_RATIO);
 
@@ -2352,7 +2357,7 @@
     // in the Supply column for reference but aren't treated as usable until they've actually
     // arrived (per explicit instruction).
     const baseSurplus = Math.max(0, onHand - reserve);
-    return { item, onHand, incoming, supply, tenItem, tenOnHand, reserveTenPacksTotal, reserveTenPacksCoveredByStock, reserveTenPacks, reserve, combinedOnHand, combinedBuildableTenPacks, baseSurplus };
+    return { item, poolKey, stkVariant, stkv3Variant, isKitComponent, onHand, incoming, supply, tenItem, tenOnHand, reserveTenPacksTotal, reserveTenPacksCoveredByStock, reserveTenPacks, reserve, combinedOnHand, combinedBuildableTenPacks, baseSurplus };
   }
   function renderPlanner(){
     const root = document.getElementById("view-planner");
@@ -2646,7 +2651,8 @@
     function getBase(item){
       if (!baseCache[item.id]){
         baseCache[item.id] = plannerComputeBase(item, plannerState.eventDate, plannerState.reserveDays);
-        pool[item.id] = baseCache[item.id].baseSurplus;
+        const key = baseCache[item.id].poolKey;
+        if (pool[key] === undefined) pool[key] = baseCache[item.id].baseSurplus;
       }
       return baseCache[item.id];
     }
@@ -2668,17 +2674,15 @@
     const rows = selectedItems.map(item => {
       const base = getBase(item);
       const ratio = build.ratios[item.id] || 0;
-      const availableBefore = pool[item.id];
+      const availableBefore = pool[base.poolKey];
       const requiredForTarget = ratio > 0 ? ratio * (Number(build.outputQty)||0) : 0;
       const shortfall = Math.max(0, requiredForTarget - availableBefore);
       const maxOutputFromThis = ratio > 0 ? Math.floor(availableBefore / ratio) : null;
       const claimedByEarlier = base.baseSurplus - availableBefore;
+      // This build's actual claim (capped at what's available) comes off the shared pool right
+      // away so the *next* row/build drawing on the same flavor sees what's genuinely left.
+      if (ratio > 0) pool[base.poolKey] -= Math.min(requiredForTarget, pool[base.poolKey]);
       return { item, base, ratio, availableBefore, requiredForTarget, shortfall, maxOutputFromThis, claimedByEarlier };
-    });
-    // This build's actual claim (capped at what's available) comes off the shared pool so the
-    // *next* build in the stack sees what's genuinely left.
-    rows.forEach(r => {
-      if (r.ratio > 0) pool[r.item.id] -= Math.min(r.requiredForTarget, pool[r.item.id]);
     });
 
     const withRatio = rows.filter(r => r.ratio > 0);
@@ -2713,7 +2717,7 @@
           <tbody>
             ${rows.map(r => `<tr>
               <td><div class="cell-primary">${esc(r.item.sku)}</div>${r.ratio <= 0 ? `<div class="cell-sub">no ratio entered — excluded from feasibility</div>` : ""}</td>
-              <td class="num">${r.base.onHand.toLocaleString("en-US")}${r.base.incoming > 0 ? `<div class="cell-sub">+ ${r.base.incoming.toLocaleString("en-US")} incoming, not yet counted</div>` : ""}</td>
+              <td class="num">${r.base.onHand.toLocaleString("en-US")}${r.base.isKitComponent ? `<div class="cell-sub">-STK ${(Number(r.base.stkVariant?.qty)||0).toLocaleString("en-US")} + -STKV3 ${(Number(r.base.stkv3Variant?.qty)||0).toLocaleString("en-US")}</div>` : ""}${r.base.incoming > 0 ? `<div class="cell-sub">+ ${r.base.incoming.toLocaleString("en-US")} incoming, not yet counted</div>` : ""}</td>
               <td class="num">${r.base.reserve.toLocaleString("en-US")}${r.base.tenItem ? `
                 <div class="cell-sub">${r.base.reserveTenPacksTotal.toLocaleString("en-US")} packs needed (${esc(r.base.tenItem.sku)} @ ${(Number(r.base.tenItem.salesPerDay)||0).toLocaleString("en-US")}/day)</div>
                 <div class="cell-sub">− ${r.base.reserveTenPacksCoveredByStock.toLocaleString("en-US")} already covered by ${r.base.tenOnHand.toLocaleString("en-US")} -10 on hand</div>
