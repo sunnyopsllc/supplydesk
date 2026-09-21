@@ -30,8 +30,17 @@ const corsHeaders = {
 
 const V3_SUFFIX_RE = /[\s-]*v3$/i;
 
+// Variety-pack kit names get ad-hoc suffixes tacked on for internal tracking
+// (dates, revision marks, breakdown notes — "-August-1", "-v3.2", ".Sept",
+// etc.). Anything after "-VARTY-<number>" is one of those, not part of the
+// SKU, so truncate there. Example: "BG-NON-VARTY-30-August-1" -> "BG-NON-VARTY-30".
+const VARTY_TRAILING_RE = /^(.*-varty-\d+).*$/i;
+
 function skuFromKitName(name: string | undefined | null): string {
-  return (name ?? "").trim().replace(V3_SUFFIX_RE, "");
+  const trimmed = (name ?? "").trim();
+  const vartyMatch = trimmed.match(VARTY_TRAILING_RE);
+  if (vartyMatch) return vartyMatch[1];
+  return trimmed.replace(V3_SUFFIX_RE, "");
 }
 
 async function getDeposcoAccessToken(): Promise<string> {
