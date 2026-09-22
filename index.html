@@ -1769,6 +1769,39 @@
         <div class="stat-tile" data-tile="open-wo" tabindex="0" role="button"><div class="label">Open work orders</div><div class="value mono">${openWorkOrderItems.length}</div></div>
       </div>
 
+      <div class="panel" id="panel-running-low">
+        <div class="panel-head"><h2>Running low (under ${RUNWAY_THRESHOLD_DAYS} days)</h2>${lowRunwayItems.length ? `<span class="cell-sub">${lowRunwayItems.length} item${lowRunwayItems.length===1?'':'s'}</span>` : ''}</div>
+        <div class="panel-body">
+          ${lowRunwayItems.length === 0 ? `<div class="panel-empty">Nothing projected to run out within ${RUNWAY_THRESHOLD_DAYS} days.</div>` : `
+          ${lowRunwayItems.some(x => String(x.item.category||"").trim() === "10 Packs") ? `<div class="hint" style="padding:0 18px 4px;">"10 Packs" rows get a suggested build qty and a Request Work Order link — that opens Launch Fulfillment's form pre-filled; you still review and submit it yourself.</div>` : ""}
+          <div class="table-wrap"><table>
+            <thead><tr><th>Item</th><th class="num">Total physical qty</th><th class="num">Total sellable qty</th><th class="num">Sale/day</th><th class="num">Days left</th><th class="num">-STK qty</th><th class="num">-STKV3 qty</th><th class="num">Suggested qty</th><th></th></tr></thead>
+            <tbody>
+              ${lowRunwayItems.map(({item:i, days}) => {
+                const critical = days < 14;
+                const is10Pack = String(i.category||"").trim() === "10 Packs";
+                const needsWorkOrder = is10Pack && !i.openWorkOrder;
+                const qty = needsWorkOrder ? suggestedWorkOrderQty(i) : null;
+                return `<tr>
+                  <td data-act="goto-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}</div>${openWorkOrderPill(i)}</td>
+                  <td class="num">${Number.isFinite(i.totalPhysicalQty) ? i.totalPhysicalQty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
+                  <td class="num">${Number.isFinite(i.totalSellableQty) ? i.totalSellableQty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
+                  <td class="num">${Number(i.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2})}</td>
+                  <td class="num"><span class="pill pill-${critical?'critical':'warn'}">${Math.floor(days)}d</span></td>
+                  <td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stk")) : '<span class="cell-sub">—</span>'}</td>
+                  <td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stkv3")) : '<span class="cell-sub">—</span>'}</td>
+                  <td class="num">${qty !== null ? qty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
+                  <td class="actions">${needsWorkOrder ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+                    <a class="btn btn-sm" href="${esc(buildWorkOrderFormUrl(i, qty))}" target="_blank" rel="noopener">Request Work Order</a>
+                    <button type="button" class="btn btn-sm btn-primary" data-act="create-wo" data-id="${i.id}" data-qty="${qty}">Create Work Order →</button>
+                  </div>` : (is10Pack ? '' : quickActionButton(i))}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table></div>`}
+        </div>
+      </div>
+
       <div class="panel">
         <div class="panel-head"><h2>Needs reordering</h2>${lowItems.length ? `<span class="cell-sub">${lowItems.length} item${lowItems.length===1?'':'s'}</span>` : ''}</div>
         <div class="panel-body">
@@ -1788,40 +1821,6 @@
                   <td><span class="pill pill-${st.key}">${st.label}</span></td>
                   <td class="num">${days !== null ? Math.floor(days) + "d" : '<span class="cell-sub">—</span>'}</td>
                   <td class="actions">${quickActionButton(i)}</td>
-                </tr>`;
-              }).join("")}
-            </tbody>
-          </table></div>`}
-        </div>
-      </div>
-
-      <div class="panel" id="panel-running-low">
-        <div class="panel-head"><h2>Running low (under ${RUNWAY_THRESHOLD_DAYS} days)</h2>${lowRunwayItems.length ? `<span class="cell-sub">${lowRunwayItems.length} item${lowRunwayItems.length===1?'':'s'}</span>` : ''}</div>
-        <div class="panel-body">
-          ${lowRunwayItems.length === 0 ? `<div class="panel-empty">Nothing projected to run out within ${RUNWAY_THRESHOLD_DAYS} days.</div>` : `
-          ${lowRunwayItems.some(x => String(x.item.category||"").trim() === "10 Packs") ? `<div class="hint" style="padding:0 18px 4px;">"10 Packs" rows get a suggested build qty and a Request Work Order link — that opens Launch Fulfillment's form pre-filled; you still review and submit it yourself.</div>` : ""}
-          <div class="table-wrap"><table>
-            <thead><tr><th>Item</th><th>Vendor</th><th class="num">On hand</th><th class="num">Sale/day</th><th class="num">Days left</th><th class="num">-STK qty</th><th class="num">-STKV3 qty</th><th class="num">Suggested qty</th><th></th></tr></thead>
-            <tbody>
-              ${lowRunwayItems.map(({item:i, days}) => {
-                const v = vendorById(i.vendorId);
-                const critical = days < 14;
-                const is10Pack = String(i.category||"").trim() === "10 Packs";
-                const needsWorkOrder = is10Pack && !i.openWorkOrder;
-                const qty = needsWorkOrder ? suggestedWorkOrderQty(i) : null;
-                return `<tr>
-                  <td data-act="goto-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}</div>${openWorkOrderPill(i)}</td>
-                  <td>${v ? esc(v.name) : '<span class="cell-sub">—</span>'}</td>
-                  <td class="num">${Number(i.qty)||0}</td>
-                  <td class="num">${Number(i.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2})}</td>
-                  <td class="num"><span class="pill pill-${critical?'critical':'warn'}">${Math.floor(days)}d</span></td>
-                  <td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stk")) : '<span class="cell-sub">—</span>'}</td>
-                  <td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stkv3")) : '<span class="cell-sub">—</span>'}</td>
-                  <td class="num">${qty !== null ? qty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
-                  <td class="actions">${needsWorkOrder ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-                    <a class="btn btn-sm" href="${esc(buildWorkOrderFormUrl(i, qty))}" target="_blank" rel="noopener">Request Work Order</a>
-                    <button type="button" class="btn btn-sm btn-primary" data-act="create-wo" data-id="${i.id}" data-qty="${qty}">Create Work Order →</button>
-                  </div>` : (is10Pack ? '' : quickActionButton(i))}</td>
                 </tr>`;
               }).join("")}
             </tbody>
