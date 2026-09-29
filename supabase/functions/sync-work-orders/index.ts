@@ -2,9 +2,13 @@
 //
 // Pulls open work orders from Deposco, matches them to Supply Desk SKUs
 // (stripping a trailing "-V3"/"v3"/" - V3" off the kit name), and writes
-// item.openWorkOrder = {number, qty, dueDate} onto matching items in the
-// app_state row — clearing it from any item no longer open. Mirrors the
-// logic that used to be run from a local script.
+// item.openWorkOrders = [{number, qty, dueDate}, ...] onto matching items in
+// the app_state row — clearing it from any item no longer open. A finished
+// SKU can have more than one open work order at once (e.g. one running plus
+// a second queued behind it), so this is always an array, never a single
+// object — collapsing to one silently dropped whichever WO wasn't last in
+// Deposco's response. Mirrors the logic that used to be run from a local
+// script.
 //
 // Deposco credentials come from function secrets (never exposed to the
 // client). The Supabase service role key is injected automatically by the
@@ -124,16 +128,15 @@ Deno.serve(async (req) => {
     const accessToken = await getDeposcoAccessToken();
     const workOrders = await getOpenWorkOrders(accessToken);
 
-    const woBySku = new Map<string, { number: string; qty: number; dueDate: string }>();
+    const woBySku = new Map<string, { number: string; qty: number; dueDate: string }[]>();
     for (const wo of workOrders) {
       const kitName = wo?.kitHeader?.businessKey?.name;
       const sku = skuFromKitName(kitName);
       if (!sku) continue;
-      woBySku.set(sku.toLowerCase(), {
-        number: wo.number,
-        qty: wo.quantity,
-        dueDate: wo.dueDate,
-      });
+      const key = sku.toLowerCase();
+      const list = woBySku.get(key) ?? [];
+      list.push({ number: wo.number, qty: wo.quantity, dueDate: wo.dueDate });
+      woBySku.set(key, list);
     }
 
     const { data: row, error: readError } = await supabase
@@ -150,13 +153,16 @@ Deno.serve(async (req) => {
     for (const item of state.items ?? []) {
       const skuKey = (item.sku ?? "").trim().toLowerCase();
       const matched = woBySku.get(skuKey);
-      if (matched) {
-        if (JSON.stringify(item.openWorkOrder) !== JSON.stringify(matched)) {
-          item.openWorkOrder = matched;
+      // Legacy field from before an item could carry more than one open WO — always cleared
+      // now that openWorkOrders (plural) is the source of truth.
+      if ("openWorkOrder" in item) delete item.openWorkOrder;
+      if (matched && matched.length) {
+        if (JSON.stringify(item.openWorkOrders) !== JSON.stringify(matched)) {
+          item.openWorkOrders = matched;
           setCount++;
         }
-      } else if ("openWorkOrder" in item) {
-        delete item.openWorkOrder;
+      } else if ("openWorkOrders" in item) {
+        delete item.openWorkOrders;
         clearedCount++;
       }
     }

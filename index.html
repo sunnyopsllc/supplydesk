@@ -1115,16 +1115,19 @@
     if (spd <= 0) return null;
     return (Number(it.qty) || 0) / spd;
   }
-  // item.openWorkOrder — {number, qty, dueDate} — is synced in from Deposco's open work orders
-  // (matched by kit output SKU), not something entered in Supply Desk itself. Shown as a small
-  // pill right under the SKU wherever the item's row appears.
+  // item.openWorkOrders — [{number, qty, dueDate}, ...] — is synced in from Deposco's open work
+  // orders (matched by kit output SKU), not something entered in Supply Desk itself. A SKU can
+  // have more than one open WO at once, so this is always an array — shown as one small pill per
+  // WO, stacked, right under the SKU wherever the item's row appears.
   function openWorkOrderPill(it){
-    const wo = it.openWorkOrder;
-    if (!wo) return "";
-    // dueDate comes from Deposco as a full ISO datetime (e.g. "2026-09-17T00:00:00-05:00") —
-    // fmtDate expects a bare "YYYY-MM-DD", so take just the date portion.
-    const dueDateOnly = String(wo.dueDate || "").slice(0, 10);
-    return `<div class="cell-sub" style="margin-top:2px;"><span class="pill pill-accent" title="Synced from Deposco">Open WO #${esc(wo.number)} · ${Number(wo.qty)||0} · due ${fmtDate(dueDateOnly)}</span></div>`;
+    const wos = it.openWorkOrders;
+    if (!Array.isArray(wos) || !wos.length) return "";
+    return `<div class="cell-sub" style="margin-top:2px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;">${wos.map(wo => {
+      // dueDate comes from Deposco as a full ISO datetime (e.g. "2026-09-17T00:00:00-05:00") —
+      // fmtDate expects a bare "YYYY-MM-DD", so take just the date portion.
+      const dueDateOnly = String(wo.dueDate || "").slice(0, 10);
+      return `<span class="pill pill-accent" title="Synced from Deposco">Open WO #${esc(wo.number)} · ${Number(wo.qty)||0} · due ${fmtDate(dueDateOnly)}</span>`;
+    }).join("")}</div>`;
   }
 
   /* ============ work order request (Launch Fulfillment's Google Form) ============ */
@@ -1743,7 +1746,7 @@
       .sort((a,b) => Math.abs(b.totalPhysicalQty - b.totalSellableQty) - Math.abs(a.totalPhysicalQty - a.totalSellableQty));
     // Items with a work order currently open in Deposco (synced in, not entered here) —
     // regardless of category or days of stock, so this tile reflects what's really in flight.
-    const openWorkOrderItems = state.items.filter(i => i.openWorkOrder);
+    const openWorkOrderItems = state.items.filter(i => Array.isArray(i.openWorkOrders) && i.openWorkOrders.length);
 
     root.innerHTML = `
       <div class="panel">
@@ -1780,7 +1783,7 @@
               ${lowRunwayItems.map(({item:i, days}) => {
                 const critical = days < 14;
                 const is10Pack = String(i.category||"").trim() === "10 Packs";
-                const needsWorkOrder = is10Pack && !i.openWorkOrder;
+                const needsWorkOrder = is10Pack && !(Array.isArray(i.openWorkOrders) && i.openWorkOrders.length);
                 const qty = needsWorkOrder ? suggestedWorkOrderQty(i) : null;
                 return `<tr>
                   <td data-act="goto-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}</div>${openWorkOrderPill(i)}</td>
@@ -1850,21 +1853,29 @@
       </div>
 
       <div class="panel" id="panel-open-wo">
-        <div class="panel-head"><h2>Open work orders</h2>${openWorkOrderItems.length ? `<span class="cell-sub">${openWorkOrderItems.length} item${openWorkOrderItems.length===1?'':'s'}</span>` : ''}</div>
+        ${(() => {
+          // One row per work order, not per item — a SKU can have more than one open WO at
+          // once, and each needs its own visible row rather than being silently dropped.
+          const openWoRows = [];
+          openWorkOrderItems.forEach(i => i.openWorkOrders.forEach(wo => openWoRows.push({ item: i, wo })));
+          openWoRows.sort((a,b) => new Date(a.wo.dueDate) - new Date(b.wo.dueDate));
+          return `
+        <div class="panel-head"><h2>Open work orders</h2>${openWoRows.length ? `<span class="cell-sub">${openWoRows.length} work order${openWoRows.length===1?'':'s'}</span>` : ''}</div>
         <div class="panel-body">
-          ${openWorkOrderItems.length === 0 ? `<div class="panel-empty">No open work orders — hit "Sync work orders" above for the latest from Deposco.</div>` : `
+          ${openWoRows.length === 0 ? `<div class="panel-empty">No open work orders — hit "Sync work orders" above for the latest from Deposco.</div>` : `
           <div class="table-wrap"><table>
             <thead><tr><th>Item</th><th>WO #</th><th class="num">Qty</th><th>Due</th></tr></thead>
             <tbody>
-              ${openWorkOrderItems.slice().sort((a,b) => new Date(a.openWorkOrder.dueDate) - new Date(b.openWorkOrder.dueDate)).map(i => `<tr>
+              ${openWoRows.map(({item:i, wo}) => `<tr>
                   <td data-act="goto-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}</div></td>
-                  <td class="mono">${esc(i.openWorkOrder.number)}</td>
-                  <td class="num">${Number(i.openWorkOrder.qty)||0}</td>
-                  <td>${fmtDate(i.openWorkOrder.dueDate)}</td>
+                  <td class="mono">${esc(wo.number)}</td>
+                  <td class="num">${Number(wo.qty)||0}</td>
+                  <td>${fmtDate(wo.dueDate)}</td>
                 </tr>`).join("")}
             </tbody>
           </table></div>`}
-        </div>
+        </div>`;
+        })()}
       </div>
 
       <div class="panel">
@@ -2022,7 +2033,7 @@
       if (invFilter.vendor && i.vendorId !== invFilter.vendor) return false;
       if (invFilter.status === "reorder" && stockStatus(i).key === "ok") return false;
       if (invFilter.status === "out" && stockStatus(i).key !== "critical") return false;
-      if (invFilter.status === "openwo" && !i.openWorkOrder) return false;
+      if (invFilter.status === "openwo" && !(Array.isArray(i.openWorkOrders) && i.openWorkOrders.length)) return false;
       if (invFilter.status === "runway30"){
         const d = daysOfStock(i);
         if (d === null || d >= 30) return false;
