@@ -1753,7 +1753,10 @@
         <div class="panel-body" style="padding:16px 18px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <div style="font-size:12px;font-weight:600;color:var(--ink-muted);">Ask about a SKU</div>
-            <button type="button" class="btn btn-sm btn-quiet" id="sync-wo-btn" title="Pull the latest open work orders from Deposco">⟳ Sync work orders</button>
+            <div style="display:flex;gap:6px;">
+              <button type="button" class="btn btn-sm btn-quiet" id="sync-inv-btn" title="Pull current on-hand quantities from Deposco">⟳ Sync inventory</button>
+              <button type="button" class="btn btn-sm btn-quiet" id="sync-wo-btn" title="Pull the latest open work orders from Deposco">⟳ Sync work orders</button>
+            </div>
           </div>
           <div style="display:flex;gap:8px;">
             <input type="text" id="ask-input" autocomplete="off" placeholder='e.g. "how many days left of BG-CAF-ONLINE-30?"' style="flex:1;padding:9px 12px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);">
@@ -1916,6 +1919,7 @@
       tile.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); go(); } });
     });
     document.getElementById("sync-wo-btn")?.addEventListener("click", handleSyncWorkOrdersClick);
+    document.getElementById("sync-inv-btn")?.addEventListener("click", handleSyncInventoryClick);
     const runAsk = () => {
       const q = document.getElementById("ask-input").value.trim();
       if (!q) return;
@@ -4532,6 +4536,24 @@
       showToast("Couldn't sync work orders: " + ((e && e.message) ? e.message : "unknown error"), true);
     } finally {
       const btnAgain = document.getElementById("sync-wo-btn");
+      if (btnAgain){ btnAgain.disabled = false; btnAgain.textContent = original; }
+    }
+  }
+  async function handleSyncInventoryClick(){
+    const btn = document.getElementById("sync-inv-btn");
+    if (!btn || btn.disabled) return;
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Syncing…";
+    try {
+      const { data, error } = await supabaseClient.functions.invoke("sync-inventory", { method: "POST" });
+      if (error) throw error;
+      if (data && data.ok === false) throw new Error(data.error || "Sync failed");
+      showToast(`Synced inventory from Deposco — ${data.matched} SKUs matched, ${data.changed} changed.`);
+    } catch (e) {
+      showToast("Couldn't sync inventory: " + ((e && e.message) ? e.message : "unknown error"), true);
+    } finally {
+      const btnAgain = document.getElementById("sync-inv-btn");
       if (btnAgain){ btnAgain.disabled = false; btnAgain.textContent = original; }
     }
   }
