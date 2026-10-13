@@ -482,10 +482,10 @@
         <div class="field">
           <label for="in-total-physical-qty">Total physical qty</label>
           <input id="in-total-physical-qty" name="totalPhysicalQty" type="number" step="1" placeholder="e.g. from Deposco">
-          <div class="hint">Optional — lets Supply Desk flag a mismatch against sellable qty</div>
+          <div class="hint">Optional — lets Supply Desk flag a mismatch against available qty</div>
         </div>
         <div class="field">
-          <label for="in-total-sellable-qty">Total sellable qty</label>
+          <label for="in-total-sellable-qty">Total available qty</label>
           <input id="in-total-sellable-qty" name="totalSellableQty" type="number" step="1" placeholder="e.g. from Deposco">
         </div>
         <div class="field">
@@ -1737,7 +1737,7 @@
       .map(i => ({ item:i, days: daysOfStock(i) }))
       .filter(x => x.days !== null && x.days < RUNWAY_THRESHOLD_DAYS)
       .sort((a,b) => a.days - b.days);
-    // Flags a physical-vs-sellable gap of more than 100 units — usually means stock is stuck
+    // Flags a physical-vs-available gap of more than 100 units — usually means stock is stuck
     // somewhere (damaged, on hold, miscounted) rather than truly available to sell. Only looks
     // at items where both figures are actually populated (e.g. from a Deposco import).
     const MISMATCH_THRESHOLD = 100;
@@ -1771,7 +1771,7 @@
         <div class="stat-tile ${lowItems.length?'attn':''}" data-tile="inv-reorder" tabindex="0" role="button"><div class="label">Need reordering</div><div class="value mono">${lowItems.length}</div></div>
         <div class="stat-tile ${lowRunwayItems.length?'attn':''}" data-tile="inv-runway30" tabindex="0" role="button"><div class="label">Under ${RUNWAY_THRESHOLD_DAYS} days stock</div><div class="value mono">${lowRunwayItems.length}</div></div>
         <div class="stat-tile" data-tile="pos-open" tabindex="0" role="button"><div class="label">Open purchase orders</div><div class="value mono">${openPos.length}</div></div>
-        <div class="stat-tile ${mismatchItems.length?'attn':''}" data-tile="inv-mismatch" tabindex="0" role="button"><div class="label">Physical/sellable mismatch</div><div class="value mono">${mismatchItems.length}</div></div>
+        <div class="stat-tile ${mismatchItems.length?'attn':''}" data-tile="inv-mismatch" tabindex="0" role="button"><div class="label">Physical/available mismatch</div><div class="value mono">${mismatchItems.length}</div></div>
         <div class="stat-tile" data-tile="open-wo" tabindex="0" role="button"><div class="label">Open work orders</div><div class="value mono">${openWorkOrderItems.length}</div></div>
       </div>
 
@@ -1781,7 +1781,7 @@
           ${lowRunwayItems.length === 0 ? `<div class="panel-empty">Nothing projected to run out within ${RUNWAY_THRESHOLD_DAYS} days.</div>` : `
           ${lowRunwayItems.some(x => String(x.item.category||"").trim() === "10 Packs") ? `<div class="hint" style="padding:0 18px 4px;">"10 Packs" rows get a suggested build qty and a Request Work Order link — that opens Launch Fulfillment's form pre-filled; you still review and submit it yourself.</div>` : ""}
           <div class="table-wrap"><table>
-            <thead><tr><th>Item</th><th class="num">Total physical qty</th><th class="num">Total sellable qty</th><th class="num">Sale/day</th><th class="num">Days left</th><th class="num">-STK qty</th><th class="num">-STKV3 qty</th><th class="num">Suggested qty</th><th></th></tr></thead>
+            <thead><tr><th>Item</th><th class="num">Total physical qty</th><th class="num">Total available qty</th><th class="num">Sale/day</th><th class="num">Days left</th><th class="num">-STK qty</th><th class="num">-STKV3 qty</th><th class="num">Suggested qty</th><th></th></tr></thead>
             <tbody>
               ${lowRunwayItems.map(({item:i, days}) => {
                 const critical = days < 14;
@@ -1835,11 +1835,11 @@
       </div>
 
       <div class="panel" id="panel-mismatch">
-        <div class="panel-head"><h2>Physical/sellable mismatch (over ${MISMATCH_THRESHOLD})</h2>${mismatchItems.length ? `<span class="cell-sub">${mismatchItems.length} item${mismatchItems.length===1?'':'s'}</span>` : ''}</div>
+        <div class="panel-head"><h2>Physical/available mismatch (over ${MISMATCH_THRESHOLD})</h2>${mismatchItems.length ? `<span class="cell-sub">${mismatchItems.length} item${mismatchItems.length===1?'':'s'}</span>` : ''}</div>
         <div class="panel-body">
-          ${mismatchItems.length === 0 ? `<div class="panel-empty">No SKUs with both physical and sellable qty set have a gap over ${MISMATCH_THRESHOLD}.</div>` : `
+          ${mismatchItems.length === 0 ? `<div class="panel-empty">No SKUs with both physical and available qty set have a gap over ${MISMATCH_THRESHOLD}.</div>` : `
           <div class="table-wrap" style="max-height:360px;overflow-y:auto;"><table>
-            <thead><tr><th>Item</th><th class="num">Total physical qty</th><th class="num">Total sellable qty</th><th class="num">Difference</th></tr></thead>
+            <thead><tr><th>Item</th><th class="num">Total physical qty</th><th class="num">Total available qty</th><th class="num">Difference</th></tr></thead>
             <tbody>
               ${mismatchItems.map(i => {
                 const diff = i.totalPhysicalQty - i.totalSellableQty;
@@ -4141,8 +4141,8 @@
         <div class="field"><label for="imp-col-name">Item name column</label><select id="imp-col-name">${noneOpt}${headers.map(h=>opt(h,guessName)).join("")}</select></div>
         <div class="field"><label for="imp-col-cost">Unit cost column</label><select id="imp-col-cost">${noneOpt}${headers.map(h=>opt(h,guessCost)).join("")}</select></div>
         <div class="field"><label for="imp-col-sales-per-day">Sale/day column</label><select id="imp-col-sales-per-day">${noneOpt}${headers.map(h=>opt(h,guessSalesPerDay)).join("")}</select></div>
-        <div class="field"><label for="imp-col-total-physical">Total physical qty column</label><select id="imp-col-total-physical">${noneOpt}${headers.map(h=>opt(h,guessTotalPhysical)).join("")}</select><div class="hint">Optional — used to flag a physical/sellable mismatch on the dashboard</div></div>
-        <div class="field"><label for="imp-col-total-sellable">Total sellable qty column</label><select id="imp-col-total-sellable">${noneOpt}${headers.map(h=>opt(h,guessTotalSellable)).join("")}</select></div>
+        <div class="field"><label for="imp-col-total-physical">Total physical qty column</label><select id="imp-col-total-physical">${noneOpt}${headers.map(h=>opt(h,guessTotalPhysical)).join("")}</select><div class="hint">Optional — used to flag a physical/available mismatch on the dashboard</div></div>
+        <div class="field"><label for="imp-col-total-sellable">Total available qty column</label><select id="imp-col-total-sellable">${noneOpt}${headers.map(h=>opt(h,guessTotalSellable)).join("")}</select></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <label style="display:flex;gap:8px;align-items:center;font-size:13px;"><input type="checkbox" id="imp-add-new" checked> Add SKUs from the file that aren't in Supply Desk yet</label>
