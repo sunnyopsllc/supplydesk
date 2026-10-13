@@ -68,6 +68,25 @@ async function getAllInventory(accessToken: string, facilities: string): Promise
   return records;
 }
 
+// The platform's injected SUPABASE_SERVICE_ROLE_KEY is no longer byte-identical
+// to the legacy JWT service key the cron job sends from Vault, so a plain string
+// compare rejected the scheduled calls (401). Instead: confirm the token claims
+// the service_role and prove it by making a call only the service role can make
+// (Supabase's auth server verifies the signature, so a forged token fails).
+async function isServiceRoleToken(token: string, supabaseUrl: string): Promise<boolean> {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return false;
+    const claims = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+    if (claims.role !== "service_role") return false;
+    const probe = createClient(supabaseUrl, token);
+    const { error } = await probe.auth.admin.listUsers({ page: 1, perPage: 1 });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -79,7 +98,7 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get("Authorization") ?? "";
     const callerToken = authHeader.replace(/^Bearer\s+/i, "");
-    const isScheduledCall = callerToken === serviceRoleKey;
+    const isScheduledCall = callerToken === serviceRoleKey || await isServiceRoleToken(callerToken, supabaseUrl);
 
     if (!isScheduledCall) {
       const callerClient = createClient(supabaseUrl, anonKey, {
