@@ -1949,7 +1949,7 @@
           ${lowRunwayItems.length === 0 ? `<div class="panel-empty">Nothing projected to run out within ${RUNWAY_THRESHOLD_DAYS} days.</div>` : `
           ${lowRunwayItems.some(x => String(x.item.category||"").trim() === "10 Packs") ? `<div class="hint" style="padding:0 18px 4px;">"10 Packs" rows get a suggested build qty and a Request Work Order link — that opens Launch Fulfillment's form pre-filled; you still review and submit it yourself.</div>` : ""}
           <div class="table-wrap"><table>
-            <thead><tr><th>Item</th><th class="num">Total physical qty</th><th class="num">Total available qty</th><th class="num">Sale/day</th><th class="num">Days left</th><th class="num">-STK qty</th><th class="num">-STKV3 qty</th><th class="num">Suggested qty</th><th></th></tr></thead>
+            <thead><tr><th>Item</th><th class="num">Total physical qty</th><th class="num">Total available qty</th><th class="num">Sale/day</th><th class="num">Days left</th><th class="num">On PO</th><th class="num">-STK qty</th><th class="num">-STKV3 qty</th><th class="num">Suggested qty</th><th></th></tr></thead>
             <tbody>
               ${lowRunwayItems.map(({item:i, days}) => {
                 const critical = days < 14;
@@ -1962,6 +1962,7 @@
                   <td class="num">${Number.isFinite(i.totalSellableQty) ? i.totalSellableQty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
                   <td class="num">${Number(i.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2})}</td>
                   <td class="num"><span class="pill pill-${critical?'critical':'warn'}">${Math.floor(days)}d</span></td>
+                  <td class="num">${/-10$/i.test(i.sku) ? '<span class="cell-sub">—</span>' : onPoCell(i.id)}</td>
                   <td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stk")) : '<span class="cell-sub">—</span>'}</td>
                   <td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stkv3")) : '<span class="cell-sub">—</span>'}</td>
                   <td class="num">${qty !== null ? qty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
