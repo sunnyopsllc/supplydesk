@@ -1068,6 +1068,36 @@
     }
     return total;
   }
+  // Every PO line for an item that's still relevant, with where it stands: nothing received yet
+  // ("open"), some received ("partial"), or all received ("fulfilled" — kept visible while its PO
+  // is still open or for 30 days after the PO was completed, so a just-finished line doesn't vanish).
+  function itemPoLines(itemId){
+    const recentCutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const out = [];
+    for (const po of state.pos){
+      if (po.status === "draft" || po.status === "cancelled") continue;
+      if (po.status === "received" && (po.receivedDate || "") < recentCutoff) continue;
+      let ordered = 0, received = 0;
+      for (const line of po.lines){
+        if (line.itemId !== itemId) continue;
+        ordered += Number(line.qtyOrdered)||0;
+        received += Number(line.qtyReceived)||0;
+      }
+      if (!ordered) continue;
+      const left = Math.max(0, ordered - received);
+      out.push({ po, ordered, received, left, over: Math.max(0, received - ordered), state: left === 0 ? "fulfilled" : received > 0 ? "partial" : "open" });
+    }
+    return out;
+  }
+  function onPoCell(itemId){
+    const lines = itemPoLines(itemId);
+    if (!lines.length) return '<span class="cell-sub">—</span>';
+    const fmt = x => x.toLocaleString("en-US");
+    const left = lines.reduce((n, l) => n + l.left, 0);
+    const pill = { open:["pill-neutral","Not received"], partial:["pill-warn","Partially received"], fulfilled:["pill-ok","Fulfilled"] };
+    return `<div>${left > 0 ? `<strong>${fmt(left)}</strong> left` : '<span class="pill pill-ok">Fulfilled</span>'}</div>` +
+      lines.map(l => `<div class="cell-sub" style="white-space:nowrap;margin-top:2px;">${esc(l.po.number)} · <span class="pill ${pill[l.state][0]}">${pill[l.state][1]}</span><br>${fmt(l.received)} of ${fmt(l.ordered)} received${l.over ? ` (+${fmt(l.over)} over)` : l.left ? ` · ${fmt(l.left)} left` : ""}</div>`).join("");
+  }
   // Records a shipment against a SKU without needing to know which PO number it belongs to —
   // applies it to the oldest open PO(s) for that item first (FIFO), the way stock actually
   // arrives against orders placed over time. Always adds the full amount to on-hand; whatever
@@ -2232,7 +2262,7 @@
           return `<tr>
             <td data-act="edit-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}${i.uom?` · ${esc(i.uom)}`:''}</div>${openWorkOrderPill(i)}</td>
             <td class="num">${Number(i.qty)||0}</td>
-            <td class="num">${itemOnPoQty(i.id) > 0 ? itemOnPoQty(i.id).toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
+            <td class="num">${onPoCell(i.id)}</td>
             ${stkCols}
             ${showStkCols ? "" : `<td class="num">${Number(i.reorderPoint)||0}</td>`}
             <td><span class="pill pill-${st.key}">${st.label}</span></td>
