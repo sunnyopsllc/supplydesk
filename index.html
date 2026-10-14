@@ -476,7 +476,7 @@
           <input id="in-uom" name="uom" placeholder="e.g. each, case, box">
         </div>
         <div class="field">
-          <label for="in-qty">Qty on hand</label>
+          <label for="in-qty">Qty available</label>
           <input id="in-qty" name="qty" type="number" min="0" step="1" value="0">
         </div>
         <div class="field">
@@ -2248,7 +2248,7 @@
       return Math.max(0, Math.ceil(TOPUP_TARGET_DAYS * spd - (Number(i.qty)||0)));
     };
     panel.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Item</th><th class="num">On hand</th><th class="num">On PO</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num" title="Units/day that actually left, from inventory snapshots with receipts and kitting netted out">Velocity<br><span style="font-weight:400;">30d · 7d</span></th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
+      <thead><tr><th>Item</th><th class="num">Available</th><th class="num">On PO</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num" title="Units/day that actually left, from inventory snapshots with receipts and kitting netted out">Velocity<br><span style="font-weight:400;">30d · 7d</span></th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
       <tbody>
         ${rows.map(i => {
           const v = vendorById(i.vendorId);

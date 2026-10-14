@@ -2,10 +2,11 @@
 //
 // Pulls on-hand inventory for Better Days from Deposco and writes it onto the
 // matching Supply Desk items (matched by SKU, case-insensitive):
-//   item.qty              <- totalOnHandQuantity  (physical count; the API's availableQuantity
-//                            subtracts blocked units and doesn't match Deposco's Total Sellable Qty)
+//   item.qty              <- availableQuantity    (sellable/ATP, same basis as the old manual import)
+//                            EXCEPT "-PARENT" SKUs, which use totalOnHandQuantity: the API subtracts
+//                            large blocked quantities there, which Deposco's own Total Sellable Qty doesn't
 //   item.totalPhysicalQty <- totalOnHandQuantity
-//   item.totalSellableQty <- availableQuantity    (the API's "available", for reference)
+//   item.totalSellableQty <- availableQuantity
 // summed across every facility queried. Items Supply Desk doesn't track are
 // ignored (nothing is added), and tracked items Deposco has no record of are
 // left untouched.
@@ -243,8 +244,9 @@ Deno.serve(async (req) => {
       const inv = bySku.get(String(item.sku ?? "").trim().toLowerCase());
       if (!inv) { notInDeposco++; continue; }
       matched++;
-      if (item.qty !== inv.onHand || item.totalPhysicalQty !== inv.onHand || item.totalSellableQty !== inv.available) {
-        item.qty = inv.onHand;
+      const mainQty = /-parent$/i.test(String(item.sku ?? "").trim()) ? inv.onHand : inv.available;
+      if (item.qty !== mainQty || item.totalPhysicalQty !== inv.onHand || item.totalSellableQty !== inv.available) {
+        item.qty = mainQty;
         item.totalPhysicalQty = inv.onHand;
         item.totalSellableQty = inv.available;
         changed++;
