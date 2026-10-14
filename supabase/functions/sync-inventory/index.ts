@@ -2,9 +2,10 @@
 //
 // Pulls on-hand inventory for Better Days from Deposco and writes it onto the
 // matching Supply Desk items (matched by SKU, case-insensitive):
-//   item.qty              <- availableQuantity    (sellable/ATP, same basis as the old manual import)
+//   item.qty              <- totalOnHandQuantity  (physical count; the API's availableQuantity
+//                            subtracts blocked units and doesn't match Deposco's Total Sellable Qty)
 //   item.totalPhysicalQty <- totalOnHandQuantity
-//   item.totalSellableQty <- availableQuantity
+//   item.totalSellableQty <- availableQuantity    (the API's "available", for reference)
 // summed across every facility queried. Items Supply Desk doesn't track are
 // ignored (nothing is added), and tracked items Deposco has no record of are
 // left untouched.
@@ -242,8 +243,8 @@ Deno.serve(async (req) => {
       const inv = bySku.get(String(item.sku ?? "").trim().toLowerCase());
       if (!inv) { notInDeposco++; continue; }
       matched++;
-      if (item.qty !== inv.available || item.totalPhysicalQty !== inv.onHand || item.totalSellableQty !== inv.available) {
-        item.qty = inv.available;
+      if (item.qty !== inv.onHand || item.totalPhysicalQty !== inv.onHand || item.totalSellableQty !== inv.available) {
+        item.qty = inv.onHand;
         item.totalPhysicalQty = inv.onHand;
         item.totalSellableQty = inv.available;
         changed++;
