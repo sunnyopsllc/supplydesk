@@ -2067,7 +2067,7 @@
       return Math.max(0, Math.ceil(TOPUP_TARGET_DAYS * spd - (Number(i.qty)||0)));
     };
     panel.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Item</th><th class="num">Available</th><th class="num">On PO</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
+      <thead><tr><th>Item</th><th class="num">Available</th><th class="num">On PO</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num" title="Units/day that actually left, from inventory snapshots with receipts and kitting netted out">Velocity<br><span style="font-weight:400;">30d · 7d</span></th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
       <tbody>
         ${rows.map(i => {
           const v = vendorById(i.vendorId);
@@ -2087,6 +2087,7 @@
             ${showStkCols ? "" : `<td class="num">${Number(i.reorderPoint)||0}</td>`}
             <td><span class="pill pill-${st.key}">${st.label}</span></td>
             <td class="num">${i.salesPerDay ? Number(i.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2}) : '<span class="cell-sub">—</span>'}</td>
+            <td class="num">${Number.isFinite(i.velocity30d) ? `${i.velocity30d.toLocaleString("en-US",{maximumFractionDigits:2})}<div class="cell-sub">${Number.isFinite(i.velocity7d) ? i.velocity7d.toLocaleString("en-US",{maximumFractionDigits:2}) : "—"} · ${Math.round(i.velocityDays||0)}d of data</div>` : '<span class="cell-sub">—</span>'}</td>
             <td class="num">${days !== null ? Math.floor(days) + "d" : '<span class="cell-sub">—</span>'}</td>
             ${topUpCol}
             <td>${v ? esc(v.name) : '<span class="cell-sub">—</span>'}</td>
