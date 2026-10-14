@@ -1379,6 +1379,139 @@
       </div>
     `;
   }
+
+  // "How much do I need to make N of X?" — explodes X's bill of material (or, for a -10 pack,
+  // the 10:1 stick recipe) against what's available now, with -STK and -STKV3 pooled and POs
+  // still on the way shown separately, and tells you what's short.
+  let lastAskedItemId = null;
+  let askThread = []; // the dashboard Q&A conversation; kept here so a re-render doesn't wipe it
+  function parseQuantityFromQuestion(q, item){
+    let text = q;
+    if (item && item.sku) text = text.replace(new RegExp(item.sku.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
+    const m = text.match(/(\d[\d,]*(?:\.\d+)?)\s*(k\b)?/i);
+    if (!m) return null;
+    let n = Number(m[1].replace(/,/g, ""));
+    if (m[2]) n *= 1000;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  function recipeFor(item){
+    if (Array.isArray(item.bom) && item.bom.length){
+      return item.bom.map(l => ({ comp: itemById(l.componentId), per: Number(l.qty)||0 })).filter(r => r.comp && r.per > 0);
+    }
+    const comp = findKitComponent(item);
+    return comp ? [{ comp, per: KIT_COMPONENT_RATIO }] : [];
+  }
+
+  // Remaining (ordered minus received) on open POs for an item, bucketed by expected date:
+  // due within `days` of today, due later, or no expected date set. For -STK/-STKV3 the two
+  // variants are pooled since they're interchangeable for kitting.
+  function openPoSupply(item, days, pool = true){
+    const isKit = pool && /-(stk|stkv3)$/i.test(item.sku);
+    const ids = new Set((isKit ? [findKitVariant(item.sku,"stk"), findKitVariant(item.sku,"stkv3")].filter(Boolean) : [item]).map(i => i.id));
+    const cutoff = new Date(Date.now() + days * 86400000).toISOString().slice(0,10);
+    const out = { within: 0, later: 0, undated: 0, pos: [] };
+    for (const po of state.pos){
+      if (po.status !== "sent" && po.status !== "partial") continue;
+      let remaining = 0;
+      for (const line of po.lines) if (ids.has(line.itemId)) remaining += Math.max(0, (Number(line.qtyOrdered)||0) - (Number(line.qtyReceived)||0));
+      if (!remaining) continue;
+      const bucket = !po.expected ? "undated" : po.expected <= cutoff ? "within" : "later";
+      out[bucket] += remaining;
+      out.pos.push({ number: po.number, expected: po.expected || "", remaining, bucket });
+    }
+    return out;
+  }
+  function tryOnOrderAnswer(q){
+    const qLower = q.toLowerCase();
+    if (!/(on order|incoming|expect|coming in|arriv|on po|open po|purchase order|on the way|due in)/.test(qLower)) return null;
+    if (/\b(creat\w*|mak(e|es|ing)|build\w*|produc\w*|manufactur\w*|assembl\w*)\b/.test(qLower)) return null;
+    const fmt = x => Number(x).toLocaleString("en-US");
+    const rowsFor = items => items.map(i => ({ item: i, sup: openPoSupply(i, 30, false) })).filter(r => r.sup.within + r.sup.later + r.sup.undated > 0);
+    const matches = findItemForQuestion(q);
+    const subject = matches.length === 1 ? matches : null;
+    const rows = rowsFor(subject || state.items).sort((a,b) => b.sup.within - a.sup.within || (b.sup.later + b.sup.undated) - (a.sup.later + a.sup.undated));
+    if (rows.length === 0) return subject ? `<div>${esc(subject[0].sku)} has nothing outstanding on open purchase orders.</div>` : `<div>There's nothing outstanding on open purchase orders.</div>`;
+    const totalWithin = rows.reduce((n,r) => n + r.sup.within, 0);
+    const head = subject
+      ? `<div><strong>${esc(subject[0].sku)}:</strong> ${fmt(rows[0].sup.within)} due within 30 days${rows[0].sup.later ? `, ${fmt(rows[0].sup.later)} later` : ""}${rows[0].sup.undated ? `, ${fmt(rows[0].sup.undated)} with no expected date` : ""}.</div>`
+      : `<div><strong>${fmt(totalWithin)} units across ${rows.filter(r => r.sup.within).length} SKUs</strong> are due within the next 30 days; ${rows.length} SKUs have something outstanding on open POs.</div>`;
+    return `${head}
+      <div class="table-wrap" style="margin-top:8px;max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;"><table>
+        <thead><tr><th>SKU</th><th class="num">Due in 30 days</th><th class="num">Later</th><th class="num">No date</th><th>POs</th></tr></thead>
+        <tbody>${rows.map(({item, sup}) => `<tr>
+          <td><div class="cell-primary mono">${esc(item.sku)}</div></td>
+          <td class="num">${sup.within ? fmt(sup.within) : "—"}</td>
+          <td class="num">${sup.later ? fmt(sup.later) : "—"}</td>
+          <td class="num">${sup.undated ? fmt(sup.undated) : "—"}</td>
+          <td class="cell-sub">${sup.pos.map(p => `${esc(p.number)}${p.expected ? " · " + fmtDate(p.expected) : ""}`).join(", ")}</td>
+        </tr>`).join("")}</tbody></table></div>`;
+  }
+  function tryPlanningAnswer(q){
+    const qLower = q.toLowerCase();
+    const planningIntent = /\b(creat\w*|mak(e|es|ing)|build\w*|produc\w*|manufactur\w*|assembl\w*|kit(ting)?)\b/.test(qLower)
+      || /how (much|many).*(need|order|inventory|stock|product|sticks?)/.test(qLower);
+    if (!planningIntent) return null;
+    let matches = findItemForQuestion(q);
+    if (matches.length === 0 && lastAskedItemId && parseQuantityFromQuestion(q, null)) {
+      const last = itemById(lastAskedItemId);
+      if (last) matches = [last];
+    }
+    if (matches.length !== 1) return null;
+    const item = matches[0];
+    const n = parseQuantityFromQuestion(q, item);
+    if (!n) return null;
+    const recipe = recipeFor(item);
+    if (recipe.length === 0) return `<div>${esc(item.sku)} doesn't have a bill of material saved (and it isn't a -10 pack with a matching stick SKU), so I can't work out what it takes to make ${n.toLocaleString("en-US")}. Add its components on the item and ask again.</div>`;
+    lastAskedItemId = item.id;
+
+    const rows = recipe.map(({comp, per}) => {
+      // No reserve here — this is a straight "what does it take" question (the Event Planner is
+      // the reserve-aware tool). Open POs due within 30 days count toward covering a shortfall.
+      const base = plannerComputeBase(comp, null, 0);
+      const sup = openPoSupply(comp, 30);
+      const need = per * n;
+      const avail = base.onHand;
+      const short = Math.max(0, need - avail);
+      const shortAfterPos = Math.max(0, need - avail - sup.within);
+      const maxFromThis = Math.floor(avail / per);
+      return { comp, per, need, avail, sup, short, shortAfterPos, maxFromThis, pooled: base.isKitComponent };
+    });
+    const shortRows = rows.filter(r => r.short > 0);
+    const maxNow = Math.min(...rows.map(r => r.maxFromThis));
+    const bottleneck = rows.reduce((a,b) => a.maxFromThis <= b.maxFromThis ? a : b);
+    const vel = Number.isFinite(item.velocity30d) && item.velocity30d > 0 ? item.velocity30d : (Number(item.salesPerDay) || 0);
+    const velSource = Number.isFinite(item.velocity30d) && item.velocity30d > 0 ? "tracked 30-day velocity" : "your sale/day figure";
+    const fmt = x => Number(x).toLocaleString("en-US");
+
+    let verdict;
+    if (shortRows.length === 0){
+      verdict = `<strong>You have enough on hand to make ${fmt(n)} ${esc(item.sku)} right now.</strong> No additional component inventory is needed.`;
+    } else {
+      const stillShort = shortRows.filter(r => r.shortAfterPos > 0);
+      verdict = `<strong>To make ${fmt(n)} ${esc(item.sku)} you're short on ${shortRows.length} component${shortRows.length===1?"":"s"}.</strong> ` +
+        (stillShort.length === 0 ? `Open POs due within 30 days would cover all of it once received.` : `Even counting open POs due within 30 days, ${stillShort.length} would still be short.`) +
+        ` Right now you could make ${fmt(maxNow)} (limited by ${esc(bottleneck.comp.sku)}).`;
+    }
+    const velLine = vel > 0 ? `<div class="cell-sub" style="margin-top:6px;">${fmt(n)} units is about ${fmt(Math.round(n / vel))} days of sales at ${vel.toLocaleString("en-US",{maximumFractionDigits:2})}/day (${velSource}).</div>` : "";
+    const woLine = Array.isArray(item.openWorkOrders) && item.openWorkOrders.length
+      ? `<div class="cell-sub" style="margin-top:6px;">Already in progress: ${item.openWorkOrders.map(w => `WO #${esc(w.number)} (${fmt(w.qty)} units)`).join(", ")} — not counted in the numbers above.</div>` : "";
+    return `
+      <div>${verdict}</div>
+      <div class="table-wrap" style="margin-top:8px;max-height:300px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;">
+        <table>
+          <thead><tr><th>Component</th><th class="num">Needed</th><th class="num">Available</th><th class="num">On order (due in 30d)</th><th class="num">Short</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td><div class="cell-primary">${esc(r.comp.sku)}</div><div class="cell-sub">${fmt(r.per)} per unit${r.pooled ? " · -STK + -STKV3 pooled" : ""}</div></td>
+              <td class="num">${fmt(r.need)}</td>
+              <td class="num">${fmt(r.avail)}</td>
+              <td class="num">${r.sup.within ? fmt(r.sup.within) : "—"}${(r.sup.later || r.sup.undated) ? `<div class="cell-sub">+ ${fmt(r.sup.later + r.sup.undated)} later / no date</div>` : ""}</td>
+              <td class="num" style="${r.short>0?"color:var(--critical);font-weight:600;":""}">${r.short>0 ? fmt(r.short) : "OK"}${r.short>0 && r.sup.within ? `<div class="cell-sub" style="font-weight:400;">${r.shortAfterPos>0 ? fmt(r.shortAfterPos)+" after 30d POs" : "covered by POs due in 30d"}</div>` : ""}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>${velLine}${woLine}`;
+  }
   function findItemForQuestion(q){
     const qLower = q.toLowerCase();
     const skuMatches = state.items.filter(i => i.sku && qLower.includes(i.sku.toLowerCase()));
@@ -1429,6 +1562,10 @@
       return `${item.name} (${item.sku}) is currently ${st.label.toLowerCase()} (${qty} on hand).`;
     }
     if (/sale|sold|velocity|selling/.test(qLower)){
+      if (Number.isFinite(item.velocity30d) && item.velocityDays >= 1){
+        const f = x => Number(x).toLocaleString("en-US",{maximumFractionDigits:2});
+        return `${item.name} (${item.sku}) has actually been leaving at ${f(item.velocity30d)} units/day over the last 30 days (${Number.isFinite(item.velocity7d) ? f(item.velocity7d) : "—"}/day over the last 7), based on ${Math.round(item.velocityDays)} days of tracked inventory with receipts and kitting netted out.${item.salesPerDay ? ` Your manual sale/day figure is ${spdText()}.` : ""}`;
+      }
       return item.salesPerDay ? `${item.name} (${item.sku}) sells about ${spdText()} units/day.` : `There's no sale/day figure recorded for ${item.name} (${item.sku}) yet.`;
     }
     if (/location|bin|where/.test(qLower)){
@@ -1759,10 +1896,11 @@
             </div>
           </div>
           <div style="display:flex;gap:8px;">
-            <input type="text" id="ask-input" autocomplete="off" placeholder='e.g. "how many days left of BG-CAF-ONLINE-30?"' style="flex:1;padding:9px 12px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);">
+            <input type="text" id="ask-input" autocomplete="off" placeholder='Ask anything, e.g. "how much more inventory do I need to create 1,000 BG-NON-VARTY-30?"' style="flex:1;padding:9px 12px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);">
             <button class="btn btn-primary" id="ask-submit">Ask</button>
           </div>
-          <div id="ask-answer" class="cell-sub" style="margin-top:10px;font-size:13.5px;color:var(--ink);display:none;"></div>
+          <div id="ask-hint" class="cell-sub" style="margin-top:8px;font-size:12px;">Try: "how many days left of X", "how fast is X selling", "what's under 14 days", "what's on order", or "how much do I need to make 1,000 X".</div>
+          <div id="ask-thread" style="margin-top:10px;max-height:460px;overflow-y:auto;display:none;"></div>
         </div>
       </div>
 
@@ -1920,14 +2058,26 @@
     });
     document.getElementById("sync-wo-btn")?.addEventListener("click", handleSyncWorkOrdersClick);
     document.getElementById("sync-inv-btn")?.addEventListener("click", handleSyncInventoryClick);
+    const threadEl = document.getElementById("ask-thread");
+    const renderThread = () => {
+      if (!askThread.length){ threadEl.style.display = "none"; threadEl.innerHTML = ""; return; }
+      threadEl.style.display = "block";
+      threadEl.innerHTML = askThread.map(m => m.role === "q"
+        ? `<div style="display:flex;justify-content:flex-end;margin:8px 0 4px;"><div style="background:var(--accent-soft);color:var(--accent-ink);border-radius:12px 12px 2px 12px;padding:7px 12px;font-size:13.5px;max-width:85%;">${esc(m.text)}</div></div>`
+        : `<div style="margin:4px 0 10px;font-size:13.5px;color:var(--ink);background:var(--surface-2);border-radius:12px 12px 12px 2px;padding:10px 12px;">${m.html}</div>`
+      ).join("") + `<div style="text-align:right;"><button type="button" class="btn btn-sm btn-quiet" id="ask-clear">Clear conversation</button></div>`;
+      document.getElementById("ask-clear").onclick = () => { askThread = []; lastAskedItemId = null; renderThread(); };
+      threadEl.scrollTop = threadEl.scrollHeight;
+    };
+    renderThread();
     const runAsk = () => {
-      const q = document.getElementById("ask-input").value.trim();
+      const input = document.getElementById("ask-input");
+      const q = input.value.trim();
       if (!q) return;
-      const answerEl = document.getElementById("ask-answer");
-      answerEl.style.display = "block";
-      const listHtml = tryListAnswer(q);
-      if (listHtml !== null) answerEl.innerHTML = listHtml;
-      else answerEl.textContent = answerQuestion(q);
+      const html = tryPlanningAnswer(q) ?? tryOnOrderAnswer(q) ?? tryListAnswer(q) ?? esc(answerQuestion(q));
+      askThread.push({ role: "q", text: q }, { role: "a", html });
+      input.value = "";
+      renderThread();
     };
     document.getElementById("ask-submit").onclick = runAsk;
     document.getElementById("ask-input").addEventListener("keydown", e => { if (e.key === "Enter"){ hideAskSuggest(); runAsk(); } else if (e.key === "Escape") hideAskSuggest(); });
