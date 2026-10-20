@@ -168,6 +168,7 @@ Deno.serve(async (req) => {
     const state = row.data;
     let setCount = 0;
     let clearedCount = 0;
+    let pendingResolved = 0;
 
     for (const item of state.items ?? []) {
       const skuKey = (item.sku ?? "").trim().toLowerCase();
@@ -175,6 +176,15 @@ Deno.serve(async (req) => {
       // Legacy field from before an item could carry more than one open WO — always cleared
       // now that openWorkOrders (plural) is the source of truth.
       if ("openWorkOrder" in item) delete item.openWorkOrder;
+      // A work order the user entered in Supply Desk as "requested, not in Deposco yet" is
+      // resolved once Deposco shows an open WO that wasn't open when they entered it.
+      if (item.pendingWorkOrder) {
+        const known = new Set((item.pendingWorkOrder.knownWoNumbers ?? []).map(String));
+        if ((matched ?? []).some((w) => !known.has(String(w.number)))) {
+          delete item.pendingWorkOrder;
+          pendingResolved++;
+        }
+      }
       if (matched && matched.length) {
         if (JSON.stringify(item.openWorkOrders) !== JSON.stringify(matched)) {
           item.openWorkOrders = matched;
@@ -198,6 +208,7 @@ Deno.serve(async (req) => {
         openWorkOrders: workOrders.length,
         itemsUpdated: setCount,
         itemsCleared: clearedCount,
+        pendingResolved,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

@@ -1149,10 +1149,21 @@
   // orders (matched by kit output SKU), not something entered in Supply Desk itself. A SKU can
   // have more than one open WO at once, so this is always an array — shown as one small pill per
   // WO, stacked, right under the SKU wherever the item's row appears.
+  // A work order entered by hand as "requested, not in Deposco yet". It stays until Deposco shows
+  // an open WO that wasn't open when the request was entered (the sync then removes it for good);
+  // the check is repeated here so the badge goes away on screen the moment the WO shows up.
+  function pendingWoWaiting(it){
+    const p = it.pendingWorkOrder;
+    if (!p) return null;
+    const known = new Set((p.knownWoNumbers || []).map(String));
+    const arrived = (Array.isArray(it.openWorkOrders) ? it.openWorkOrders : []).some(w => !known.has(String(w.number)));
+    return arrived ? null : p;
+  }
   function openWorkOrderPill(it){
-    const wos = it.openWorkOrders;
-    if (!Array.isArray(wos) || !wos.length) return "";
-    return `<div class="cell-sub" style="margin-top:2px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;">${wos.map(wo => {
+    const wos = Array.isArray(it.openWorkOrders) ? it.openWorkOrders : [];
+    const pending = pendingWoWaiting(it);
+    if (!wos.length && !pending) return "";
+    return `<div class="cell-sub" style="margin-top:2px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;">${pending ? `<span class="pill pill-warn" title="You entered this request on ${fmtDate(pending.requestedAt)}; it will turn into the real work order once it shows up in Deposco">Requested ${Number(pending.qty)||0} · awaiting Deposco</span>` : ""}${wos.map(wo => {
       // dueDate comes from Deposco as a full ISO datetime (e.g. "2026-09-17T00:00:00-05:00") —
       // fmtDate expects a bare "YYYY-MM-DD", so take just the date portion.
       const dueDateOnly = String(wo.dueDate || "").slice(0, 10);
@@ -1949,7 +1960,7 @@
           ${lowRunwayItems.length === 0 ? `<div class="panel-empty">Nothing projected to run out within ${RUNWAY_THRESHOLD_DAYS} days.</div>` : `
           ${lowRunwayItems.some(x => String(x.item.category||"").trim() === "10 Packs") ? `<div class="hint" style="padding:0 18px 4px;">"10 Packs" rows get a suggested build qty and a Request Work Order link — that opens Launch Fulfillment's form pre-filled; you still review and submit it yourself.</div>` : ""}
           <div class="table-wrap"><table>
-            <thead><tr><th>Item</th><th class="num">Total physical qty</th><th class="num">Total available qty</th><th class="num">Sale/day</th><th class="num">Days left</th><th class="num">On PO</th><th class="num">-STK qty</th><th class="num">-STKV3 qty</th><th class="num">Suggested qty</th><th></th></tr></thead>
+            <thead><tr><th>Item</th><th>WO requested</th><th class="num">Total physical qty</th><th class="num">Total available qty</th><th class="num">Sale/day</th><th class="num">Days left</th><th class="num">On PO</th><th class="num">-STK qty</th><th class="num">-STKV3 qty</th><th class="num">Suggested qty</th><th></th></tr></thead>
             <tbody>
               ${lowRunwayItems.map(({item:i, days}) => {
                 const critical = days < 14;
@@ -1958,6 +1969,9 @@
                 const qty = needsWorkOrder ? suggestedWorkOrderQty(i) : null;
                 return `<tr>
                   <td data-act="goto-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}</div>${openWorkOrderPill(i)}</td>
+                  <td>${pendingWoWaiting(i)
+                    ? `<button type="button" class="btn btn-sm btn-quiet pending-wo-clear" data-id="${i.id}" title="Remove this request">✕ Clear</button>`
+                    : `<div style="display:flex;gap:4px;align-items:center;"><input type="number" min="1" step="1" class="pending-wo-input" data-id="${i.id}" placeholder="Units" style="width:78px;padding:5px 7px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);"><button type="button" class="btn btn-sm pending-wo-set" data-id="${i.id}">Set</button></div>`}</td>
                   <td class="num">${Number.isFinite(i.totalPhysicalQty) ? i.totalPhysicalQty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
                   <td class="num">${Number.isFinite(i.totalSellableQty) ? i.totalSellableQty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
                   <td class="num">${Number(i.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2})}</td>
@@ -2086,6 +2100,23 @@
       };
       tile.addEventListener("click", go);
       tile.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); go(); } });
+    });
+    const setPendingWo = id => {
+      const item = itemById(id);
+      const input = document.querySelector(`.pending-wo-input[data-id="${id}"]`);
+      const qty = Number(input && input.value);
+      if (!item || !(qty > 0)){ showToast("Enter how many units you requested.", true); return; }
+      item.pendingWorkOrder = { qty, requestedAt: todayISO(), knownWoNumbers: (Array.isArray(item.openWorkOrders) ? item.openWorkOrders : []).map(w => String(w.number)) };
+      showToast(`Saved — ${item.sku} shows ${qty} requested until Deposco has the work order.`);
+      commit();
+    };
+    document.querySelectorAll(".pending-wo-set").forEach(b => b.onclick = () => setPendingWo(b.dataset.id));
+    document.querySelectorAll(".pending-wo-input").forEach(inp => inp.addEventListener("keydown", e => { if (e.key === "Enter") setPendingWo(inp.dataset.id); }));
+    document.querySelectorAll(".pending-wo-clear").forEach(b => b.onclick = () => {
+      const item = itemById(b.dataset.id);
+      if (!item) return;
+      delete item.pendingWorkOrder;
+      commit();
     });
     document.getElementById("sync-wo-btn")?.addEventListener("click", handleSyncWorkOrdersClick);
     document.getElementById("sync-inv-btn")?.addEventListener("click", handleSyncInventoryClick);
