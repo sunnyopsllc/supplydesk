@@ -28,6 +28,7 @@ supabase/
     sync-work-orders/index.ts           pulls open work orders from Deposco, updates app_state
   migrations/
     20260914000000_schedule_sync_work_orders.sql   pg_cron job that runs the sync every 6h
+    20261021000000_app_state_audit.sql              recoverable field-level app_state history
 ```
 
 ## Local development
@@ -50,7 +51,16 @@ The Supabase side (Edge Functions, migrations) deploys separately, via the [Supa
 supabase login                                          # or export SUPABASE_ACCESS_TOKEN
 supabase link --project-ref gomprsflladmbebjahkq
 supabase functions deploy sync-work-orders --project-ref gomprsflladmbebjahkq
+supabase functions deploy sync-inventory --project-ref gomprsflladmbebjahkq
+supabase db push --project-ref gomprsflladmbebjahkq
 ```
+
+The app_state update path uses optimistic concurrency checks. A user edit and a scheduled
+Deposco sync can no longer silently overwrite one another: the later writer receives a conflict
+and the scheduled job retries on its next run. The audit migration records every successful
+app_state update, including nested JSON paths that changed and the complete prior snapshot.
+The in-app **History** screen lists recent snapshots and can restore one; a restore is itself
+recorded as a new history entry.
 
 Deposco credentials the function needs are stored as **function secrets**, not in this repo:
 

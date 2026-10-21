@@ -403,6 +403,7 @@
     </div>
     <div id="login-error" class="hint" style="color:var(--critical);display:none;"></div>
     <button type="submit" class="btn btn-primary" id="login-submit">Log in</button>
+    <button type="button" class="btn btn-quiet" id="login-reset">Forgot password?</button>
   </form>
 </div>
 
@@ -418,6 +419,7 @@
       <button data-view="pos"><span class="ic">⇄</span>Purchase Orders<span class="count" id="nav-count-pos">0</span></button>
       <button data-view="vendors"><span class="ic">✎</span>Vendors<span class="count" id="nav-count-vendors">0</span></button>
       <button data-view="planner"><span class="ic">◫</span>Event Planner</button>
+      <button data-view="history"><span class="ic">↶</span>History</button>
       <div id="nav-planner-plans" class="nav-sub"></div>
     </nav>
     <div class="sidebar-foot">
@@ -440,6 +442,7 @@
     <section class="view" id="view-pos"></section>
     <section class="view" id="view-vendors"></section>
     <section class="view" id="view-planner"></section>
+    <section class="view" id="view-history"></section>
   </main>
 </div>
 
@@ -935,8 +938,10 @@
                                        // that render-triggered persist() calls don't echo it back
   let lastWrittenJSON = null;  // last body we sent via persist() — lets the realtime handler
                                 // recognize "this is just my own write echoing back"
+  let loadedUpdatedAt = null;   // optimistic concurrency token for the shared app_state row
   let currentView = "dashboard";
   let saving = false, pendingSave = false;
+  let auditRows = [];
 
   /* ============ helpers ============ */
   function esc(s){
@@ -1705,11 +1710,12 @@
 
     (async () => {
       try{
-        const { data, error } = await supabaseClient.from("app_state").select("data").eq("id", 1).single();
+        const { data, error } = await supabaseClient.from("app_state").select("data, updated_at").eq("id", 1).single();
         if (error) throw error;
 
         if (data && data.data && Object.keys(data.data).length){
           state = normalizeState(data.data);
+          loadedUpdatedAt = data.updated_at || null;
         } else {
           // nothing saved yet — seed from whatever's in this browser's local copy (carries an
           // existing device's data over the first time it opens with shared storage available),
@@ -1730,9 +1736,11 @@
             if (incomingJSON === lastWrittenJSON) return; // just our own write echoing back
             applyingRemoteSnapshot = true;
             state = normalizeState(payload.new.data);
+            loadedUpdatedAt = payload.new.updated_at || null;
             applyingRemoteSnapshot = false;
             renderAll();
             setSaveState("saved", "Saved");
+            loadAuditHistory();
           })
           .subscribe();
       }catch(e){
@@ -1750,23 +1758,44 @@
     if (applyingRemoteSnapshot) return; // don't write back what a realtime update just gave us
     try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
 
-    if (saving){ pendingSave = true; return; }
+    if (saving){ pendingSave = true; return false; }
     saving = true;
+    let saved = false;
     setSaveState("saving", "Saving…");
     lastWrittenJSON = JSON.stringify(state);
+    const writeTimestamp = new Date().toISOString();
     try{
-      const { error } = await supabaseClient.from("app_state")
-        .update({ data: state, updated_at: new Date().toISOString() })
+      let write = supabaseClient.from("app_state")
+        .update({ data: state, updated_at: writeTimestamp })
         .eq("id", 1);
+      // If we loaded a shared snapshot, only write it back when nobody else has changed
+      // that snapshot since we read it. This prevents one operator's full-state save from
+      // silently erasing another operator's edit.
+      if (loadedUpdatedAt) write = write.eq("updated_at", loadedUpdatedAt);
+      const { data: savedRows, error } = await write.select("updated_at");
       if (error) throw error;
+      if (!savedRows || savedRows.length !== 1){
+        const conflict = new Error("Shared data changed since this page loaded. Reload before saving.");
+        conflict.code = "CONFLICT";
+        throw conflict;
+      }
+      loadedUpdatedAt = writeTimestamp;
       hideBanner();
       setSaveState("saved", "Saved");
+      saved = true;
+      loadAuditHistory();
     }catch(e){
       setSaveState("error", "Couldn't save");
-      showToast((e && e.message) ? ("Couldn't save changes: " + e.message) : "Couldn't save changes. Your edits are kept in this browser for now.", true);
+      if (e && e.code === "CONFLICT"){
+        showBanner("Someone else changed Supply Desk while you were editing. Reload before saving so you don't overwrite their work.");
+        showToast("Couldn't save: shared data changed. Reload before trying again.", true);
+      } else {
+        showToast((e && e.message) ? ("Couldn't save changes: " + e.message) : "Couldn't save changes. Your edits are kept in this browser for now.", true);
+      }
     }
     saving = false;
     if (pendingSave){ pendingSave = false; persist(); }
+    return saved;
   }
 
   function commit(){ renderAll(); persist(); }
@@ -1788,10 +1817,17 @@
       document.getElementById("confirm-title").textContent = title;
       document.getElementById("confirm-body").textContent = body;
       const ok = document.getElementById("confirm-ok");
-      function cleanup(v){ dlg.close(); ok.removeEventListener("click", onOk); resolve(v); }
+      let settled = false;
+      function cleanup(v){
+        if (settled) return;
+        settled = true;
+        ok.removeEventListener("click", onOk);
+        if (dlg.open) dlg.close();
+        resolve(v);
+      }
       function onOk(){ cleanup(true); }
       ok.addEventListener("click", onOk);
-      dlg.addEventListener("close", () => resolve(false), { once:true });
+      dlg.addEventListener("close", () => cleanup(false), { once:true });
       dlg.showModal();
     });
   }
@@ -1802,7 +1838,8 @@
     inventory: { title:"Inventory", sub:"Everything you keep on hand" },
     pos: { title:"Purchase Orders", sub:"What's on order and what's arrived" },
     vendors: { title:"Vendors", sub:"Who you order from" },
-    planner: { title:"Event Planner", sub:"What you can commit to an event without dipping into normal safety stock" }
+    planner: { title:"Event Planner", sub:"What you can commit to an event without dipping into normal safety stock" },
+    history: { title:"History", sub:"Recent changes and recovery points" }
   };
 
   function renderAll(){
@@ -1886,6 +1923,65 @@
     else if (currentView === "pos") renderPOs();
     else if (currentView === "vendors") renderVendors();
     else if (currentView === "planner") renderPlanner();
+    else if (currentView === "history") renderAuditHistory();
+  }
+
+  async function loadAuditHistory(){
+    try {
+      const { data, error } = await supabaseClient
+        .from("app_state_history")
+        .select("id, changed_at, actor_type, changed_fields, before_data")
+        .order("changed_at", { ascending:false })
+        .limit(100);
+      if (error) throw error;
+      auditRows = data || [];
+    } catch (e) {
+      // The history migration may not be deployed yet. Keep the main app usable while
+      // making the missing capability visible on the History screen.
+      auditRows = [];
+    }
+  }
+
+  async function restoreAuditEntry(id){
+    const row = auditRows.find(r => String(r.id) === String(id));
+    if (!row || !row.before_data) return;
+    const fields = Array.isArray(row.changed_fields) ? row.changed_fields : [];
+    const ok = await confirmDialog(
+      "Restore this snapshot?",
+      `This will restore the state from ${fmtDateTime(row.changed_at)} and replace the current values for the recorded change${fields.length === 1 ? "" : "s"}. The restore itself will be recorded in History.`
+    );
+    if (!ok) return;
+    state = normalizeState(row.before_data);
+    renderAll();
+    const saved = await persist();
+    if (!saved){
+      const { data: current } = await supabaseClient.from("app_state").select("data, updated_at").eq("id", 1).single();
+      if (current?.data){ state = normalizeState(current.data); loadedUpdatedAt = current.updated_at || null; renderAll(); }
+      showToast("The snapshot could not be restored because shared data changed. No restore was applied.", true);
+      return;
+    }
+    await loadAuditHistory();
+    if (currentView === "history") renderAuditHistory();
+    showToast("Snapshot restored.");
+  }
+
+  function fmtDateTime(value){
+    if (!value) return "unknown time";
+    const d = new Date(value);
+    return isNaN(d) ? String(value) : d.toLocaleString("en-US", { dateStyle:"medium", timeStyle:"short" });
+  }
+
+  function renderAuditHistory(){
+    const root = document.getElementById("view-history");
+    if (!auditRows.length){
+      root.innerHTML = `<div class="panel"><div class="panel-empty">No audit history is available yet. Apply the app_state audit migration, then the next change will appear here.</div></div>`;
+      return;
+    }
+    root.innerHTML = `<div class="panel"><div class="panel-head"><h2>Recent changes</h2><span class="cell-sub">${auditRows.length} snapshots</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>When</th><th>Source</th><th>Changed fields</th><th></th></tr></thead><tbody>${auditRows.map(r => {
+      const fields = Array.isArray(r.changed_fields) ? r.changed_fields : [];
+      return `<tr><td>${esc(fmtDateTime(r.changed_at))}</td><td><span class="pill pill-${r.actor_type === "service" ? "accent" : "neutral"}">${esc(r.actor_type || "unknown")}</span></td><td class="cell-sub mono">${esc(fields.slice(0,12).join(", "))}${fields.length > 12 ? ` … +${fields.length-12}` : ""}</td><td class="actions"><button type="button" class="btn btn-sm" data-restore-history="${esc(r.id)}">Restore prior snapshot</button></td></tr>`;
+    }).join("")}</tbody></table></div></div></div>`;
+    root.querySelectorAll("[data-restore-history]").forEach(btn => btn.onclick = () => restoreAuditEntry(btn.dataset.restoreHistory));
   }
 
   /* ============ dashboard ============ */
@@ -4564,12 +4660,22 @@
     syncBtn.hidden = !(changed.length || (addNew && plan.added.length) || zeroMissing);
   }
 
-  document.getElementById("import-sync-btn").addEventListener("click", () => {
+  document.getElementById("import-sync-btn").addEventListener("click", async () => {
     const plan = computeImportPlan();
     if (!plan) return;
     const addNew = document.getElementById("imp-add-new").checked;
     const updateCost = document.getElementById("imp-update-cost").checked;
     const zeroMissing = document.getElementById("imp-zero-missing").checked;
+
+    const changes = plan.matched.filter(m => m.newQty !== m.oldQty).length;
+    const additions = addNew ? plan.added.length : 0;
+    const zeroed = zeroMissing ? plan.missing.length : 0;
+    const destructive = zeroed > 0;
+    const approved = await confirmDialog(
+      destructive ? "Apply inventory import and zero missing items?" : "Apply inventory import?",
+      `This will update ${changes} existing SKU${changes === 1 ? "" : "s"}, add ${additions} new SKU${additions === 1 ? "" : "s"}, and set ${zeroed} missing SKU${zeroed === 1 ? "" : "s"} to zero. Review the preview before continuing.`
+    );
+    if (!approved) return;
 
     let categorized = 0;
     plan.matched.forEach(m => {
@@ -4613,6 +4719,7 @@
   async function boot(){
     renderAll();
     await subscribeState();
+    await loadAuditHistory();
     initPlannerPlans();
     renderAll();
 
@@ -4709,7 +4816,7 @@
     document.getElementById("app").hidden = true;
     document.getElementById("login-screen").hidden = false;
     const errEl = document.getElementById("login-error");
-    if (errorMsg){ errEl.textContent = errorMsg; errEl.style.display = "block"; }
+    if (errorMsg){ errEl.textContent = errorMsg; errEl.style.color = "var(--critical)"; errEl.style.display = "block"; }
     else { errEl.style.display = "none"; }
   }
   document.getElementById("form-login").addEventListener("submit", async (e) => {
@@ -4727,6 +4834,32 @@
       return;
     }
     showApp();
+  });
+  document.getElementById("login-reset").addEventListener("click", async () => {
+    const emailInput = document.getElementById("login-email");
+    const email = emailInput.value.trim();
+    const errEl = document.getElementById("login-error");
+    if (!email){
+      errEl.textContent = "Enter your email first, then choose Forgot password.";
+      errEl.style.display = "block";
+      emailInput.focus();
+      return;
+    }
+    const btn = document.getElementById("login-reset");
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: `${location.origin}${location.pathname}`
+    });
+    btn.disabled = false;
+    btn.textContent = "Forgot password?";
+    if (error){
+      showLogin(error.message || "Couldn't send a reset email.");
+      return;
+    }
+    errEl.textContent = "If that email belongs to Supply Desk, a password reset link is on its way.";
+    errEl.style.color = "var(--ok)";
+    errEl.style.display = "block";
   });
   // Shared handler for the "Sync work orders" button — lives on the Dashboard
   // (inside the "Ask about a SKU" panel), which re-renders each time that
