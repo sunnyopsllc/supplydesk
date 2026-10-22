@@ -2315,6 +2315,8 @@
             <td class="num">${fmtMoney(i.cost)}</td>
             <td class="actions">
               ${itemOnPoQty(i.id) > 0 ? `<button class="btn btn-sm" data-act="receive-po" data-id="${i.id}">Receive</button>` : ""}
+              ${is10Pack ? (() => { const woQty = suggestedWorkOrderQty(i); return `<a class="btn btn-sm" href="${esc(buildWorkOrderFormUrl(i, woQty))}" target="_blank" rel="noopener" title="Opens Launch's work order form pre-filled with ${woQty} units — you review and submit it">Request WO</a>
+              <button class="btn btn-sm btn-primary" data-act="create-wo" data-id="${i.id}" data-qty="${woQty}" title="Review and create the work order directly in Deposco">Create WO →</button>`; })() : ""}
               ${quickActionButton(i)}
               <button class="btn btn-sm" data-act="edit-item" data-id="${i.id}">Edit</button>
             </td>
