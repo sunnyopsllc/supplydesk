@@ -502,6 +502,12 @@
           <input id="in-reorder-qty" name="reorderQty" type="number" min="0" step="1" value="0">
           <div class="hint">Suggested qty when placing a new PO</div>
         </div>
+        <div class="field full">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;">
+            <input type="checkbox" id="in-exclude-reorder" name="excludeFromReorder">
+            Don't list this item under "Needs reordering" (e.g. discontinued or made to order)
+          </label>
+        </div>
         <div class="field">
           <label for="in-sales-per-day">Sales/day</label>
           <input id="in-sales-per-day" name="salesPerDay" type="number" min="0" step="0.01" value="0">
@@ -1132,6 +1138,9 @@
     return { applied: qty - remaining, overage: remaining };
   }
 
+  // Items flagged "don't flag for reordering" (discontinued, made-to-order, etc.) stay out of the
+  // Needs reordering list/tile/filter even when their quantity is 0.
+  function needsReorder(it){ return !it.excludeFromReorder && stockStatus(it).key !== "ok"; }
   function stockStatus(it){
     const qty = Number(it.qty)||0, rp = Number(it.reorderPoint)||0;
     if (qty <= 0) return { key:"critical", label:"Out of stock" };
@@ -1815,7 +1824,7 @@
     document.getElementById("nav-count-inventory").textContent = state.items.length;
     document.getElementById("nav-count-pos").textContent = state.pos.filter(p => p.status==="sent"||p.status==="partial").length;
     document.getElementById("nav-count-vendors").textContent = state.vendors.length;
-    const lowCount = state.items.filter(i => stockStatus(i).key !== "ok").length;
+    const lowCount = state.items.filter(needsReorder).length;
     const invBtn = document.querySelector('.nav button[data-view="inventory"]');
     invBtn.classList.toggle("attn", lowCount > 0);
     if (lowCount > 0) document.getElementById("nav-count-inventory").textContent = lowCount + " low";
@@ -1906,7 +1915,7 @@
       return;
     }
 
-    const lowItems = state.items.filter(i => stockStatus(i).key !== "ok")
+    const lowItems = state.items.filter(needsReorder)
       .sort((a,b) => (Number(a.qty)-Number(a.reorderPoint)) - (Number(b.qty)-Number(b.reorderPoint)));
     const openPos = state.pos.filter(p => p.status==="sent" || p.status==="partial")
       .sort((a,b) => (a.expected||"9999").localeCompare(b.expected||"9999"));
@@ -2247,7 +2256,7 @@
     const rows = state.items.filter(i => {
       if (invFilter.category && i.category !== invFilter.category) return false;
       if (invFilter.vendor && i.vendorId !== invFilter.vendor) return false;
-      if (invFilter.status === "reorder" && stockStatus(i).key === "ok") return false;
+      if (invFilter.status === "reorder" && !needsReorder(i)) return false;
       if (invFilter.status === "out" && stockStatus(i).key !== "critical") return false;
       if (invFilter.status === "openwo" && !(Array.isArray(i.openWorkOrders) && i.openWorkOrders.length)) return false;
       if (invFilter.status === "runway30"){
@@ -3079,7 +3088,7 @@
       form.uom.value = it.uom || ""; form.qty.value = it.qty; form.cost.value = it.cost;
       form.totalPhysicalQty.value = Number.isFinite(it.totalPhysicalQty) ? it.totalPhysicalQty : "";
       form.totalSellableQty.value = Number.isFinite(it.totalSellableQty) ? it.totalSellableQty : "";
-      form.reorderPoint.value = it.reorderPoint; form.reorderQty.value = it.reorderQty;
+      form.reorderPoint.value = it.reorderPoint; form.reorderQty.value = it.reorderQty; form.excludeFromReorder.checked = !!it.excludeFromReorder;
       form.salesPerDay.value = it.salesPerDay || 0;
       form.targetStockQty.value = Number.isFinite(it.targetStockQty) ? it.targetStockQty : "";
       form.leadTimeDays.value = it.leadTimeDays || 0;
@@ -3094,7 +3103,7 @@
       document.getElementById("item-submit").textContent = "Add item";
       document.getElementById("item-delete").hidden = true;
       document.getElementById("item-request-wo").hidden = true;
-      form.qty.value = 0; form.cost.value = 0; form.reorderPoint.value = 0; form.reorderQty.value = 0; form.salesPerDay.value = 0; form.leadTimeDays.value = 0;
+      form.qty.value = 0; form.cost.value = 0; form.reorderPoint.value = 0; form.reorderQty.value = 0; form.excludeFromReorder.checked = false; form.salesPerDay.value = 0; form.leadTimeDays.value = 0;
       draftBom = [];
     }
     renderBomLines();
@@ -3121,6 +3130,7 @@
       cost: Number(form.cost.value) || 0,
       reorderPoint: Number(form.reorderPoint.value) || 0,
       reorderQty: Number(form.reorderQty.value) || 0,
+      excludeFromReorder: form.excludeFromReorder.checked,
       salesPerDay: Number(form.salesPerDay.value) || 0,
       targetStockQty: form.targetStockQty.value.trim() === "" ? null : Number(form.targetStockQty.value),
       leadTimeDays: Number(form.leadTimeDays.value) || 0,
