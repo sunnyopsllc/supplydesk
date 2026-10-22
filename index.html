@@ -1245,7 +1245,7 @@
   // (per explicit instruction: use one or the other, never both). Ratio is 10 component units
   // per finished unit, matching Build kit's own default (these are literally "10 packs").
   const KIT_COMPONENT_RATIO = 10;
-  function suggestedInputSkuNote(it){
+  function suggestedInputSkuNote(it, outputQty){
     // A real Bill of Materials, if one's been entered — lists every component at its per-unit
     // qty (not scaled by the batch's suggested output qty, per explicit instruction).
     if (Array.isArray(it.bom) && it.bom.length){
@@ -1259,9 +1259,15 @@
     // work without needing an explicit BOM entered).
     const stk = findKitVariant(it.sku, "stk");
     const stkv3 = findKitVariant(it.sku, "stkv3");
-    const component = (stk && (Number(stk.qty) || 0) > 0) ? stk
-      : (stkv3 && (Number(stkv3.qty) || 0) > 0) ? stkv3
-      : (stk || stkv3 || null);
+    // Prefer -STK (older stock gets used first), but only if it can actually cover the whole batch
+    // (qty x the sticks-per-pack ratio). If it can't and -STKV3 can, use -STKV3; if neither can,
+    // use whichever has more on hand.
+    const needed = (Number(outputQty) || 0) * KIT_COMPONENT_RATIO;
+    const have = v => Number(v && v.qty) || 0;
+    let component;
+    if (stk && have(stk) >= needed && have(stk) > 0) component = stk;
+    else if (stkv3 && have(stkv3) >= needed && have(stkv3) > 0) component = stkv3;
+    else component = have(stkv3) > have(stk) ? stkv3 : (stk || stkv3 || null);
     if (!component) return "";
     return `${component.sku} - ${KIT_COMPONENT_RATIO} units`;
   }
@@ -1275,7 +1281,7 @@
       "entry.282147506": WORK_ORDER_WAREHOUSE,                    // Warehouse
       "entry.1205671987": "Yes",                                  // Have we done a Work Order for this SKU before?
       "entry.824867373": `${it.sku} - ${qty} units`,              // Output SKU and QTY
-      "entry.2088867355": suggestedInputSkuNote(it),               // If there are updates to the input SKUs please specify
+      "entry.2088867355": suggestedInputSkuNote(it, qty),          // If there are updates to the input SKUs please specify
       "entry.1884097815": "None",                                 // Any additional instructions for this work order
       "entry.1608387938": WORK_ORDER_COMPANY,                     // Company Name
       "entry.1023426212": WORK_ORDER_REQUESTER_NAME               // Your Name
