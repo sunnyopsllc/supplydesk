@@ -1168,6 +1168,33 @@
     const arrived = (Array.isArray(it.openWorkOrders) ? it.openWorkOrders : []).some(w => !known.has(String(w.number)));
     return arrived ? null : p;
   }
+  // The "WO requested" entry box (or a Clear button once one is set) used on both the dashboard
+  // and the Inventory table — one implementation so they always behave the same.
+  function pendingWoCell(i){
+    return pendingWoWaiting(i)
+      ? `<button type="button" class="btn btn-sm btn-quiet pending-wo-clear" data-id="${i.id}" title="Remove this request">✕ Clear</button>`
+      : `<div style="display:flex;gap:4px;align-items:center;"><input type="number" min="1" step="1" class="pending-wo-input" data-id="${i.id}" placeholder="Units" style="width:78px;padding:5px 7px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);"><button type="button" class="btn btn-sm pending-wo-set" data-id="${i.id}">Set</button></div>`;
+  }
+  // Wired per view (root) and per cell: both views are in the page at once, so a lookup by item id
+  // alone would find the other view's box first.
+  function wirePendingWoControls(root){
+    const setPending = (id, input) => {
+      const item = itemById(id);
+      const qty = Number(input && input.value);
+      if (!item || !(qty > 0)){ showToast("Enter how many units you requested.", true); return; }
+      item.pendingWorkOrder = { qty, requestedAt: todayISO(), knownWoNumbers: (Array.isArray(item.openWorkOrders) ? item.openWorkOrders : []).map(w => String(w.number)) };
+      showToast(`Saved — ${item.sku} shows ${qty} requested until Deposco has the work order.`);
+      commit();
+    };
+    root.querySelectorAll(".pending-wo-set").forEach(b => b.onclick = () => setPending(b.dataset.id, b.parentElement.querySelector(".pending-wo-input")));
+    root.querySelectorAll(".pending-wo-input").forEach(inp => inp.addEventListener("keydown", e => { if (e.key === "Enter") setPending(inp.dataset.id, inp); }));
+    root.querySelectorAll(".pending-wo-clear").forEach(b => b.onclick = () => {
+      const item = itemById(b.dataset.id);
+      if (!item) return;
+      delete item.pendingWorkOrder;
+      commit();
+    });
+  }
   function openWorkOrderPill(it){
     const wos = Array.isArray(it.openWorkOrders) ? it.openWorkOrders : [];
     const pending = pendingWoWaiting(it);
@@ -1978,9 +2005,7 @@
                 const qty = needsWorkOrder ? suggestedWorkOrderQty(i) : null;
                 return `<tr>
                   <td data-act="goto-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}</div>${openWorkOrderPill(i)}</td>
-                  <td>${pendingWoWaiting(i)
-                    ? `<button type="button" class="btn btn-sm btn-quiet pending-wo-clear" data-id="${i.id}" title="Remove this request">✕ Clear</button>`
-                    : `<div style="display:flex;gap:4px;align-items:center;"><input type="number" min="1" step="1" class="pending-wo-input" data-id="${i.id}" placeholder="Units" style="width:78px;padding:5px 7px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);"><button type="button" class="btn btn-sm pending-wo-set" data-id="${i.id}">Set</button></div>`}</td>
+                  <td>${pendingWoCell(i)}</td>
                   <td class="num">${Number.isFinite(i.totalPhysicalQty) ? i.totalPhysicalQty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
                   <td class="num">${Number.isFinite(i.totalSellableQty) ? i.totalSellableQty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
                   <td class="num">${Number(i.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2})}</td>
@@ -2110,23 +2135,7 @@
       tile.addEventListener("click", go);
       tile.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); go(); } });
     });
-    const setPendingWo = id => {
-      const item = itemById(id);
-      const input = document.querySelector(`.pending-wo-input[data-id="${id}"]`);
-      const qty = Number(input && input.value);
-      if (!item || !(qty > 0)){ showToast("Enter how many units you requested.", true); return; }
-      item.pendingWorkOrder = { qty, requestedAt: todayISO(), knownWoNumbers: (Array.isArray(item.openWorkOrders) ? item.openWorkOrders : []).map(w => String(w.number)) };
-      showToast(`Saved — ${item.sku} shows ${qty} requested until Deposco has the work order.`);
-      commit();
-    };
-    document.querySelectorAll(".pending-wo-set").forEach(b => b.onclick = () => setPendingWo(b.dataset.id));
-    document.querySelectorAll(".pending-wo-input").forEach(inp => inp.addEventListener("keydown", e => { if (e.key === "Enter") setPendingWo(inp.dataset.id); }));
-    document.querySelectorAll(".pending-wo-clear").forEach(b => b.onclick = () => {
-      const item = itemById(b.dataset.id);
-      if (!item) return;
-      delete item.pendingWorkOrder;
-      commit();
-    });
+    wirePendingWoControls(root);
     document.getElementById("sync-wo-btn")?.addEventListener("click", handleSyncWorkOrdersClick);
     document.getElementById("sync-inv-btn")?.addEventListener("click", handleSyncInventoryClick);
     const threadEl = document.getElementById("ask-thread");
@@ -2288,7 +2297,7 @@
       return Math.max(0, Math.ceil(TOPUP_TARGET_DAYS * spd - (Number(i.qty)||0)));
     };
     panel.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Item</th><th class="num">Available</th><th class="num">On PO</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num" title="Units/day that actually left, from inventory snapshots with receipts and kitting netted out">Velocity<br><span style="font-weight:400;">30d · 7d</span></th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
+      <thead><tr><th>Item</th><th>WO requested</th><th class="num">Available</th><th class="num">On PO</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num" title="Units/day that actually left, from inventory snapshots with receipts and kitting netted out">Velocity<br><span style="font-weight:400;">30d · 7d</span></th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
       <tbody>
         ${rows.map(i => {
           const v = vendorById(i.vendorId);
@@ -2302,6 +2311,7 @@
           const topUpCol = showStkCols ? `<td class="num">${topUp !== null ? topUp.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>` : "";
           return `<tr>
             <td data-act="edit-item" data-id="${i.id}" style="cursor:pointer;"><div class="cell-primary">${esc(i.name)}</div><div class="cell-sub mono">${esc(i.sku)}${i.uom?` · ${esc(i.uom)}`:''}</div>${openWorkOrderPill(i)}</td>
+            <td>${/-(10|30)$/i.test(i.sku) ? pendingWoCell(i) : ""}</td>
             <td class="num">${Number(i.qty)||0}</td>
             <td class="num">${onPoCell(i.id)}</td>
             ${stkCols}
@@ -2325,6 +2335,7 @@
       </tbody>
     </table></div>`;
     wireRowActions(panel);
+    wirePendingWoControls(panel);
   }
 
   /* ============ purchase orders ============ */
