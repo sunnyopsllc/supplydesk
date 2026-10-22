@@ -28,7 +28,7 @@
 // (the "Sync inventory" button) or the project's service role key (cron).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { coveredDays, dayKey, outflowUnits, velocityPerDay } from "./history.ts";
+import { coveredDays, dayKey, normalizeSku, outflowUnits, velocityPerDay } from "./history.ts";
 import { getInboundSince } from "./deposco.ts";
 
 const corsHeaders = {
@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
 
     const bySku = new Map<string, { onHand: number; available: number; blocked: number }>();
     for (const r of records) {
-      const sku = String(r?.item?.businessKey?.number ?? "").trim().toLowerCase();
+      const sku = normalizeSku(String(r?.item?.businessKey?.number ?? ""));
       if (!sku) continue;
       const cur = bySku.get(sku) ?? { onHand: 0, available: 0, blocked: 0 };
       cur.onHand += Number(r?.inventory?.totalOnHandQuantity) || 0;

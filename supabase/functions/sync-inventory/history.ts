@@ -4,8 +4,14 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type Flow = Map<string, number>; // lower-case sku -> units
 
+// Deposco names a few supplies "CUS BD-OUTER-MAILER-L"; Supply Desk tracks them without the
+// "CUS " customer-supplied prefix, so both sides are compared with it stripped.
+export function normalizeSku(sku: string): string {
+  return sku.trim().toLowerCase().replace(/^cus\s+/, "");
+}
+
 export function addTo(map: Flow, sku: string, units: number) {
-  const key = sku.trim().toLowerCase();
+  const key = normalizeSku(sku);
   if (!key || !units) return;
   map.set(key, (map.get(key) ?? 0) + units);
 }
