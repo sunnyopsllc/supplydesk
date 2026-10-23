@@ -28,7 +28,7 @@
 // (the "Sync inventory" button) or the project's service role key (cron).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { coveredDays, dayKey, normalizeSku, outflowUnits, velocityPerDay } from "./history.ts";
+import { coveredDays, dayKey, isImportHeld, normalizeSku, outflowUnits, velocityPerDay } from "./history.ts";
 import { getInboundSince } from "./deposco.ts";
 
 const corsHeaders = {
@@ -238,17 +238,21 @@ Deno.serve(async (req) => {
     if (readError) throw readError;
 
     const state = row.data;
-    let matched = 0, changed = 0, notInDeposco = 0;
+    let matched = 0, changed = 0, notInDeposco = 0, heldCount = 0;
 
     for (const item of state.items ?? []) {
       const inv = bySku.get(String(item.sku ?? "").trim().toLowerCase());
       if (!inv) { notInDeposco++; continue; }
       matched++;
       const mainQty = /-parent$/i.test(String(item.sku ?? "").trim()) ? inv.onHand : inv.available;
-      if (item.qty !== mainQty || item.totalPhysicalQty !== inv.onHand || item.totalSellableQty !== inv.available) {
-        item.qty = mainQty;
+      // Items whose quantity was just imported from a Deposco export keep that quantity and its
+      // Total Sellable Qty (physical still follows the API) until the hold expires.
+      const held = isImportHeld(item, now.getTime());
+      if (!held && item.qtySource === "import") { delete item.qtySource; delete item.qtyImportedAt; }
+      if (held) heldCount++;
+      if ((!held && (item.qty !== mainQty || item.totalSellableQty !== inv.available)) || item.totalPhysicalQty !== inv.onHand) {
+        if (!held) { item.qty = mainQty; item.totalSellableQty = inv.available; }
         item.totalPhysicalQty = inv.onHand;
-        item.totalSellableQty = inv.available;
         changed++;
       }
       if (history.enabled === true && !history.error) {
@@ -267,6 +271,7 @@ Deno.serve(async (req) => {
       records: records.length,
       matched,
       changed,
+      heldFromImport: heldCount,
       history,
     };
 
@@ -277,7 +282,7 @@ Deno.serve(async (req) => {
     if (writeError) throw writeError;
 
     return new Response(
-      JSON.stringify({ ok: true, records: records.length, deposcoSkus: bySku.size, matched, changed, notInDeposco, history }),
+      JSON.stringify({ ok: true, records: records.length, deposcoSkus: bySku.size, matched, changed, notInDeposco, heldFromImport: heldCount, history }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {

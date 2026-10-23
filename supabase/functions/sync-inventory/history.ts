@@ -53,3 +53,13 @@ export function velocityPerDay(rows: DailyRow[], now: Date, coverageStart: Date,
 export function coveredDays(now: Date, coverageStart: Date): number {
   return Math.max(0, Math.round(((now.getTime() - coverageStart.getTime()) / DAY_MS) * 10) / 10);
 }
+
+// Quantities imported from a Deposco export are held for a while so the hourly sync doesn't
+// immediately overwrite them (the export has Total Sellable Qty, which the API can't give us).
+// The hold expires so imported numbers can't go stale forever without anyone noticing.
+export const IMPORT_HOLD_MS = 3 * DAY_MS;
+export function isImportHeld(item: { qtySource?: string; qtyImportedAt?: string }, nowMs: number): boolean {
+  if (item.qtySource !== "import") return false;
+  const at = Date.parse(item.qtyImportedAt ?? "");
+  return Number.isFinite(at) && nowMs - at < IMPORT_HOLD_MS;
+}

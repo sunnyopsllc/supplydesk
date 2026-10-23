@@ -1,4 +1,4 @@
-import { outflowUnits, velocityPerDay, addTo, normalizeSku, DAY_MS } from "./history.ts";
+import { outflowUnits, velocityPerDay, addTo, normalizeSku, isImportHeld, DAY_MS } from "./history.ts";
 
 function eq(a: unknown, b: unknown, msg: string) {
   if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${msg}: got ${JSON.stringify(a)} expected ${JSON.stringify(b)}`);
@@ -22,4 +22,14 @@ Deno.test("CUS prefix is ignored", () => {
   eq(normalizeSku("CUS BD-OUTER-MAILER-L"), "bd-outer-mailer-l", "prefix stripped");
   eq(normalizeSku("BD-STRTR-BOX"), "bd-strtr-box", "other SKUs untouched");
   eq(normalizeSku("cus-thing-10"), "cus-thing-10", "only 'CUS ' with a space");
+});
+
+Deno.test("import hold lasts 3 days then expires", () => {
+  const now = Date.parse("2026-10-23T12:00:00Z");
+  const at = (h: number) => new Date(now - h * 3600000).toISOString();
+  eq(isImportHeld({ qtySource: "import", qtyImportedAt: at(2) }, now), true, "fresh import held");
+  eq(isImportHeld({ qtySource: "import", qtyImportedAt: at(71) }, now), true, "just under 3 days held");
+  eq(isImportHeld({ qtySource: "import", qtyImportedAt: at(73) }, now), false, "over 3 days expired");
+  eq(isImportHeld({ qtyImportedAt: at(1) }, now), false, "no source -> not held");
+  eq(isImportHeld({ qtySource: "import" }, now), false, "no date -> not held");
 });

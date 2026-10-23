@@ -4395,6 +4395,8 @@
         <label style="display:flex;gap:8px;align-items:center;font-size:13px;"><input type="checkbox" id="imp-add-new" checked> Add SKUs from the file that aren't in Supply Desk yet</label>
         <label style="display:flex;gap:8px;align-items:center;font-size:13px;"><input type="checkbox" id="imp-update-cost"> Also update unit cost from the file</label>
         <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--critical);"><input type="checkbox" id="imp-zero-missing"> Set qty to 0 for Supply Desk items not found in this file</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;"><input type="checkbox" id="imp-hold-live" checked> Keep these quantities for 3 days — the hourly Deposco sync won't overwrite them (physical qty still updates)</label>
+        ${(() => { const n = state.items.filter(i => i.qtySource === "import").length; return n ? `<div class="cell-sub">${n} item${n===1?"":"s"} currently hold imported quantities. <button type="button" class="btn btn-sm btn-quiet" id="imp-resume-live">Resume live Deposco sync for all</button></div>` : ""; })()}
       </div>
       <div id="import-category-section"></div>
       <div id="import-preview"></div>
@@ -4414,6 +4416,13 @@
     ["imp-col-sku","imp-col-qty","imp-col-qty-fallback","imp-col-name","imp-col-cost","imp-col-sales-per-day","imp-col-total-physical","imp-col-total-sellable","imp-add-new","imp-update-cost","imp-zero-missing"]
       .forEach(id => document.getElementById(id).addEventListener("change", renderImportPreview));
     renderCategorySection();
+    const resumeBtn = document.getElementById("imp-resume-live");
+    if (resumeBtn) resumeBtn.onclick = () => {
+      state.items.forEach(i => { delete i.qtySource; delete i.qtyImportedAt; });
+      showToast("Resumed live Deposco sync — quantities will update at the next sync.");
+      document.getElementById("dlg-import").close();
+      commit();
+    };
   }
 
   function renderCategorySection(){
@@ -4604,10 +4613,12 @@
     const addNew = document.getElementById("imp-add-new").checked;
     const updateCost = document.getElementById("imp-update-cost").checked;
     const zeroMissing = document.getElementById("imp-zero-missing").checked;
+    const holdLive = document.getElementById("imp-hold-live").checked;
 
     let categorized = 0;
     plan.matched.forEach(m => {
       m.item.qty = m.newQty;
+      if (holdLive){ m.item.qtySource = "import"; m.item.qtyImportedAt = new Date().toISOString(); }
       if (updateCost && m.cost !== null) m.item.cost = m.cost;
       if (m.salesPerDay !== null) m.item.salesPerDay = m.salesPerDay;
       if (m.totalPhysicalQty !== null) m.item.totalPhysicalQty = m.totalPhysicalQty;
