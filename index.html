@@ -4413,7 +4413,7 @@
         if (importWorkbook.sheets.length > 1) scanCategoriesInBackground();
       });
     }
-    ["imp-col-sku","imp-col-qty","imp-col-qty-fallback","imp-col-name","imp-col-cost","imp-col-sales-per-day","imp-col-total-physical","imp-col-total-sellable","imp-add-new","imp-update-cost","imp-zero-missing"]
+    ["imp-col-sku","imp-col-qty","imp-col-qty-fallback","imp-col-name","imp-col-cost","imp-col-sales-per-day","imp-col-total-physical","imp-col-total-sellable","imp-add-new","imp-update-cost","imp-zero-missing","imp-hold-live"]
       .forEach(id => document.getElementById(id).addEventListener("change", renderImportPreview));
     renderCategorySection();
     const resumeBtn = document.getElementById("imp-resume-live");
@@ -4571,6 +4571,7 @@
     const addNew = document.getElementById("imp-add-new").checked;
     const updateCost = document.getElementById("imp-update-cost").checked;
     const zeroMissing = document.getElementById("imp-zero-missing").checked;
+    const holdLive = document.getElementById("imp-hold-live").checked;
     // "changed" = matched rows where SOMETHING this sync would actually write differs from
     // what's already stored — qty, or (when opted in) cost, a newly-tagged sale/day figure, or
     // a resolved category.
@@ -4578,7 +4579,11 @@
       m.newQty !== m.oldQty ||
       (updateCost && m.cost !== null && m.cost !== (Number(m.item.cost) || 0)) ||
       (m.salesPerDay !== null && m.salesPerDay !== (Number(m.item.salesPerDay) || 0)) ||
-      (m.category && m.category !== (m.item.category || ""))
+      (m.category && m.category !== (m.item.category || "")) ||
+      (m.totalSellableQty !== null && m.totalSellableQty !== m.item.totalSellableQty) ||
+      (m.totalPhysicalQty !== null && m.totalPhysicalQty !== m.item.totalPhysicalQty) ||
+      // re-importing identical numbers is still a real action when it's what pins them in place
+      (holdLive && m.item.qtySource !== "import")
     );
     const salesPerDayTagged = plan.matched.filter(m => m.salesPerDay !== null).length + (addNew ? plan.added.filter(a => a.salesPerDay).length : 0);
     const categorized = plan.matched.filter(m => m.category).length + (addNew ? plan.added.filter(a => a.category).length : 0);
