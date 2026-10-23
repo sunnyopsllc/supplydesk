@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
 
     const { data: row, error: readError } = await supabase
       .from("app_state")
-      .select("data")
+      .select("data, updated_at")
       .eq("id", 1)
       .single();
     if (readError) throw readError;
@@ -196,11 +196,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { error: writeError } = await supabase
+    const writeTimestamp = new Date().toISOString();
+    const { data: savedRows, error: writeError } = await supabase
       .from("app_state")
-      .update({ data: state, updated_at: new Date().toISOString() })
-      .eq("id", 1);
+      .update({ data: state, updated_at: writeTimestamp })
+      // Do not let a scheduled work-order refresh overwrite an edit made while it was
+      // talking to Deposco. The next hourly run will retry from the newer snapshot.
+      .eq("id", 1)
+      .eq("updated_at", row.updated_at)
+      .select("id");
     if (writeError) throw writeError;
+    if (!savedRows || savedRows.length !== 1) {
+      return new Response(
+        JSON.stringify({ ok: false, conflict: true, error: "Supply Desk changed while the work-order sync was running; no user edits were overwritten. Run the sync again." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     return new Response(
       JSON.stringify({
