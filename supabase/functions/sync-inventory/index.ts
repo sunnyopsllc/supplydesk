@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
     }
 
     const { data: row, error: readError } = await supabase
-      .from("app_state").select("data").eq("id", 1).single();
+      .from("app_state").select("data, updated_at").eq("id", 1).single();
     if (readError) throw readError;
 
     const state = row.data;
@@ -300,11 +300,21 @@ Deno.serve(async (req) => {
       history,
     };
 
-    const { error: writeError } = await supabase
+    const writeTimestamp = new Date().toISOString();
+    const { data: savedRows, error: writeError } = await supabase
       .from("app_state")
-      .update({ data: state, updated_at: new Date().toISOString() })
-      .eq("id", 1);
+      .update({ data: state, updated_at: writeTimestamp })
+      // The sync must never overwrite an edit made after its snapshot was read.
+      .eq("id", 1)
+      .eq("updated_at", row.updated_at)
+      .select("id");
     if (writeError) throw writeError;
+    if (!savedRows || savedRows.length !== 1) {
+      return new Response(
+        JSON.stringify({ ok: false, conflict: true, error: "Supply Desk changed while the Deposco sync was running; no user edits were overwritten. Run the sync again." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     return new Response(
       JSON.stringify({ ok: true, records: records.length, deposcoSkus: bySku.size, matched, changed, notInDeposco, heldFromImport: heldCount, totalSellable: { requested: coAtp.requested, returned: coAtpBySku.size, failedBatches: coAtp.failedBatches }, history }),
