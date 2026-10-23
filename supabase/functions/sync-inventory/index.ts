@@ -2,7 +2,11 @@
 //
 // Pulls on-hand inventory for Better Days from Deposco and writes it onto the
 // matching Supply Desk items (matched by SKU, case-insensitive):
-//   item.qty              <- availableQuantity    (sellable/ATP, same basis as the old manual import)
+//   item.totalSellableQty <- TotalCoATPQty from Deposco's Enterprise Inventory API (what Deposco shows
+//                            as Total Sellable Qty); falls back to availableQuantity if that call fails
+//   item.qty              <- the same Total Sellable Qty (falls back to availableQuantity, or on-hand
+//                            for -PARENT SKUs, when Total Sellable Qty isn't available for an item)
+//   (previous basis, now the fallback:) availableQuantity    (sellable/ATP, same basis as the old manual import)
 //                            EXCEPT "-PARENT" SKUs, which use totalOnHandQuantity: the API subtracts
 //                            large blocked quantities there, which Deposco's own Total Sellable Qty doesn't
 //   item.totalPhysicalQty <- totalOnHandQuantity
@@ -30,6 +34,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { coveredDays, dayKey, isImportHeld, normalizeSku, outflowUnits, velocityPerDay } from "./history.ts";
 import { getInboundSince } from "./deposco.ts";
+import { getTotalCoAtp } from "./enterprise.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -150,6 +155,7 @@ Deno.serve(async (req) => {
       throw new Error("Deposco returned no inventory records; leaving Supply Desk untouched.");
     }
 
+    const deposcoNameBySku = new Map<string, string>(); // normalized sku -> exact Deposco item number
     const bySku = new Map<string, { onHand: number; available: number; blocked: number }>();
     for (const r of records) {
       const sku = normalizeSku(String(r?.item?.businessKey?.number ?? ""));
@@ -158,9 +164,22 @@ Deno.serve(async (req) => {
       cur.onHand += Number(r?.inventory?.totalOnHandQuantity) || 0;
       cur.available += Number(r?.inventory?.availableQuantity) || 0;
       cur.blocked += Number(r?.inventory?.blockedQuantity) || 0;
+      deposcoNameBySku.set(sku, String(r?.item?.businessKey?.number ?? ""));
       bySku.set(sku, cur);
     }
 
+
+    // ---- Total Sellable Qty (TotalCoATPQty) from the Enterprise Inventory API ----
+    // Only for SKUs Supply Desk tracks. If this fails, the sync falls back to availableQuantity.
+    const { data: trackedRow } = await supabase.from("app_state").select("data").eq("id", 1).single();
+    const trackedKeys = new Set<string>((trackedRow?.data?.items ?? []).map((i: any) => normalizeSku(String(i.sku ?? ""))));
+    const wanted = [...deposcoNameBySku].filter(([k]) => trackedKeys.has(k));
+    const coAtp = await getTotalCoAtp(wanted.map(([, name]) => name), facilities);
+    const coAtpBySku = new Map<string, number>();
+    for (const [k, name] of wanted) {
+      const v = coAtp.byItem.get(name.toLowerCase());
+      if (v !== undefined) coAtpBySku.set(k, v);
+    }
 
     // ---- inventory history / velocity (never allowed to break the main sync) ----
     const now = new Date();
@@ -244,14 +263,16 @@ Deno.serve(async (req) => {
       const inv = bySku.get(String(item.sku ?? "").trim().toLowerCase());
       if (!inv) { notInDeposco++; continue; }
       matched++;
-      const mainQty = /-parent$/i.test(String(item.sku ?? "").trim()) ? inv.onHand : inv.available;
+      const coAtpQty = coAtpBySku.get(normalizeSku(String(item.sku ?? "")));
+      const sellable = coAtpQty ?? inv.available;
+      const mainQty = coAtpQty ?? (/-parent$/i.test(String(item.sku ?? "").trim()) ? inv.onHand : inv.available);
       // Items whose quantity was just imported from a Deposco export keep that quantity and its
       // Total Sellable Qty (physical still follows the API) until the hold expires.
       const held = isImportHeld(item, now.getTime());
       if (!held && item.qtySource === "import") { delete item.qtySource; delete item.qtyImportedAt; }
       if (held) heldCount++;
-      if ((!held && (item.qty !== mainQty || item.totalSellableQty !== inv.available)) || item.totalPhysicalQty !== inv.onHand) {
-        if (!held) { item.qty = mainQty; item.totalSellableQty = inv.available; }
+      if ((!held && (item.qty !== mainQty || item.totalSellableQty !== sellable)) || item.totalPhysicalQty !== inv.onHand) {
+        if (!held) { item.qty = mainQty; item.totalSellableQty = sellable; }
         item.totalPhysicalQty = inv.onHand;
         changed++;
       }
@@ -272,6 +293,7 @@ Deno.serve(async (req) => {
       matched,
       changed,
       heldFromImport: heldCount,
+      totalSellable: { requested: coAtp.requested, returned: coAtpBySku.size, failedBatches: coAtp.failedBatches, error: coAtp.error ?? null },
       history,
     };
 
@@ -282,7 +304,7 @@ Deno.serve(async (req) => {
     if (writeError) throw writeError;
 
     return new Response(
-      JSON.stringify({ ok: true, records: records.length, deposcoSkus: bySku.size, matched, changed, notInDeposco, heldFromImport: heldCount, history }),
+      JSON.stringify({ ok: true, records: records.length, deposcoSkus: bySku.size, matched, changed, notInDeposco, heldFromImport: heldCount, totalSellable: { requested: coAtp.requested, returned: coAtpBySku.size, failedBatches: coAtp.failedBatches }, history }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
