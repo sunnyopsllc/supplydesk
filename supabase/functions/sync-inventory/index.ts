@@ -268,7 +268,10 @@ Deno.serve(async (req) => {
       const mainQty = coAtpQty ?? (/-parent$/i.test(String(item.sku ?? "").trim()) ? inv.onHand : inv.available);
       // Items whose quantity was just imported from a Deposco export keep that quantity and its
       // Total Sellable Qty (physical still follows the API) until the hold expires.
-      const held = isImportHeld(item, now.getTime());
+      // Live Total Sellable Qty from Deposco beats an imported snapshot, so the import hold only
+      // applies to items Deposco didn't return a figure for this time.
+      const held = coAtpQty === undefined && isImportHeld(item, now.getTime());
+      if (coAtpQty !== undefined && item.qtySource === "import") { delete item.qtySource; delete item.qtyImportedAt; }
       if (!held && item.qtySource === "import") { delete item.qtySource; delete item.qtyImportedAt; }
       if (held) heldCount++;
       if ((!held && (item.qty !== mainQty || item.totalSellableQty !== sellable)) || item.totalPhysicalQty !== inv.onHand) {

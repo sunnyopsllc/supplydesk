@@ -29,18 +29,25 @@ export async function getTotalCoAtp(itemNumbers: string[], facilities: string, b
       const batch = batches[next++];
       const url = BASE + encodeURIComponent(businessUnit) + "/availability?" +
         `measures=TotalCoATPQty&itemNumbers=${batch.map(encodeURIComponent).join(",")}&facilityNumbers=${facilities}`;
-      try {
-        const resp = await fetch(url, { headers: { Authorization: auth, Accept: "application/json" } });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        for (const e of data.enterpriseInventory ?? []) {
-          const q = Number(e.totalCoAtpQty);
-          if (Number.isFinite(q)) out.byItem.set(String(e.itemNumber).toLowerCase(), q);
+      // Deposco's gateway occasionally answers a batch with a temporary 5xx; retry before giving up.
+      let ok = false;
+      for (let attempt = 0; attempt < 4 && !ok; attempt++) {
+        if (attempt) await new Promise((r) => setTimeout(r, 700 * attempt));
+        try {
+          const resp = await fetch(url, { headers: { Authorization: auth, Accept: "application/json" } });
+          if (resp.status >= 500) throw new Error(`HTTP ${resp.status}`);
+          if (!resp.ok) { out.error = `HTTP ${resp.status}`; break; } // 4xx won't fix itself
+          const data = await resp.json();
+          for (const e of data.enterpriseInventory ?? []) {
+            const q = Number(e.totalCoAtpQty);
+            if (Number.isFinite(q)) out.byItem.set(String(e.itemNumber).toLowerCase(), q);
+          }
+          ok = true;
+        } catch (err) {
+          out.error = String((err as Error)?.message ?? err);
         }
-      } catch (err) {
-        out.failedBatches++;
-        out.error = String((err as Error)?.message ?? err);
       }
+      if (!ok) out.failedBatches++; else if (out.failedBatches === 0) out.error = undefined;
     }
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
