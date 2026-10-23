@@ -158,75 +158,81 @@ Deno.serve(async (req) => {
       woBySku.set(key, list);
     }
 
-    const { data: row, error: readError } = await supabase
-      .from("app_state")
-      .select("data, updated_at")
-      .eq("id", 1)
-      .single();
-    if (readError) throw readError;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { data: row, error: readError } = await supabase
+        .from("app_state")
+        .select("data, updated_at")
+        .eq("id", 1)
+        .single();
+      if (readError) throw readError;
 
-    const state = row.data;
-    let setCount = 0;
-    let clearedCount = 0;
-    let pendingResolved = 0;
+      const state = row.data;
+      let setCount = 0;
+      let clearedCount = 0;
+      let pendingResolved = 0;
 
-    for (const item of state.items ?? []) {
-      const skuKey = (item.sku ?? "").trim().toLowerCase();
-      const matched = woBySku.get(skuKey);
-      // Legacy field from before an item could carry more than one open WO — always cleared
-      // now that openWorkOrders (plural) is the source of truth.
-      if ("openWorkOrder" in item) delete item.openWorkOrder;
-      // A work order the user entered in Supply Desk as "requested, not in Deposco yet" is
-      // resolved once Deposco shows an open WO that wasn't open when they entered it.
-      if (item.pendingWorkOrder) {
-        const known = new Set((item.pendingWorkOrder.knownWoNumbers ?? []).map(String));
-        if ((matched ?? []).some((w) => !known.has(String(w.number)))) {
-          delete item.pendingWorkOrder;
-          pendingResolved++;
+      for (const item of state.items ?? []) {
+        const skuKey = (item.sku ?? "").trim().toLowerCase();
+        const matched = woBySku.get(skuKey);
+        // Legacy field from before an item could carry more than one open WO — always cleared
+        // now that openWorkOrders (plural) is the source of truth.
+        if ("openWorkOrder" in item) delete item.openWorkOrder;
+        // A work order the user entered in Supply Desk as "requested, not in Deposco yet" is
+        // resolved once Deposco shows an open WO that wasn't open when they entered it.
+        if (item.pendingWorkOrder) {
+          const known = new Set((item.pendingWorkOrder.knownWoNumbers ?? []).map(String));
+          if ((matched ?? []).some((w) => !known.has(String(w.number)))) {
+            delete item.pendingWorkOrder;
+            pendingResolved++;
+          }
+        }
+        if (matched && matched.length) {
+          if (JSON.stringify(item.openWorkOrders) !== JSON.stringify(matched)) {
+            item.openWorkOrders = matched;
+            setCount++;
+          }
+        } else if ("openWorkOrders" in item) {
+          delete item.openWorkOrders;
+          clearedCount++;
         }
       }
-      if (matched && matched.length) {
-        if (JSON.stringify(item.openWorkOrders) !== JSON.stringify(matched)) {
-          item.openWorkOrders = matched;
-          setCount++;
-        }
-      } else if ("openWorkOrders" in item) {
-        delete item.openWorkOrders;
-        clearedCount++;
-      }
-    }
 
-    const writeTimestamp = new Date().toISOString();
-    const { data: savedRows, error: writeError } = await supabase
-      .from("app_state")
-      .update({ data: state, updated_at: writeTimestamp })
-      // Do not let a scheduled work-order refresh overwrite an edit made while it was
-      // talking to Deposco. The next hourly run will retry from the newer snapshot.
-      .eq("id", 1)
-      .eq("updated_at", row.updated_at)
-      .select("id");
-    if (writeError) throw writeError;
-    if (!savedRows || savedRows.length !== 1) {
+      const writeTimestamp = new Date().toISOString();
+      const { data: savedRows, error: writeError } = await supabase
+        .from("app_state")
+        .update({ data: state, updated_at: writeTimestamp })
+        // Do not let a scheduled work-order refresh overwrite an edit made while it was
+        // talking to Deposco. The next hourly run will retry from the newer snapshot.
+        .eq("id", 1)
+        .eq("updated_at", row.updated_at)
+        .select("id");
+      if (writeError) throw writeError;
+      if (!savedRows || savedRows.length !== 1) {
+        // Someone saved while we were working. Re-read the newer data and apply our changes to it again
+        // (our changes only set sync-owned fields), instead of giving up for the day.
+        if (attempt < 3) { await new Promise((r) => setTimeout(r, 500 * (attempt + 1))); continue; }
+        return new Response(
+          JSON.stringify({ ok: false, conflict: true, error: "Supply Desk changed while the work-order sync was running; no user edits were overwritten. Run the sync again." }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
       return new Response(
-        JSON.stringify({ ok: false, conflict: true, error: "Supply Desk changed while the work-order sync was running; no user edits were overwritten. Run the sync again." }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({
+          ok: true,
+          openWorkOrders: workOrders.length,
+          itemsUpdated: setCount,
+          itemsCleared: clearedCount,
+          pendingResolved,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        openWorkOrders: workOrders.length,
-        itemsUpdated: setCount,
-        itemsCleared: clearedCount,
-        pendingResolved,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw new Error("Could not save the work-order sync after several attempts because Supply Desk kept changing.");
   } catch (err) {
     console.error(err);
     return new Response(
-      JSON.stringify({ ok: false, error: String(err?.message ?? err) }),
+      JSON.stringify({ ok: false, error: String((err as Error)?.message ?? err) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }

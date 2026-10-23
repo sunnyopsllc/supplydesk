@@ -252,74 +252,80 @@ Deno.serve(async (req) => {
       history.error = String((e as Error)?.message ?? e);
     }
 
-    const { data: row, error: readError } = await supabase
-      .from("app_state").select("data, updated_at").eq("id", 1).single();
-    if (readError) throw readError;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { data: row, error: readError } = await supabase
+        .from("app_state").select("data, updated_at").eq("id", 1).single();
+      if (readError) throw readError;
 
-    const state = row.data;
-    let matched = 0, changed = 0, notInDeposco = 0, heldCount = 0;
+      const state = row.data;
+      let matched = 0, changed = 0, notInDeposco = 0, heldCount = 0;
 
-    for (const item of state.items ?? []) {
-      const inv = bySku.get(String(item.sku ?? "").trim().toLowerCase());
-      if (!inv) { notInDeposco++; continue; }
-      matched++;
-      const coAtpQty = coAtpBySku.get(normalizeSku(String(item.sku ?? "")));
-      const sellable = coAtpQty ?? inv.available;
-      const mainQty = coAtpQty ?? (/-parent$/i.test(String(item.sku ?? "").trim()) ? inv.onHand : inv.available);
-      // Items whose quantity was just imported from a Deposco export keep that quantity and its
-      // Total Sellable Qty (physical still follows the API) until the hold expires.
-      // Live Total Sellable Qty from Deposco beats an imported snapshot, so the import hold only
-      // applies to items Deposco didn't return a figure for this time.
-      const held = coAtpQty === undefined && isImportHeld(item, now.getTime());
-      if (coAtpQty !== undefined && item.qtySource === "import") { delete item.qtySource; delete item.qtyImportedAt; }
-      if (!held && item.qtySource === "import") { delete item.qtySource; delete item.qtyImportedAt; }
-      if (held) heldCount++;
-      if ((!held && (item.qty !== mainQty || item.totalSellableQty !== sellable)) || item.totalPhysicalQty !== inv.onHand) {
-        if (!held) { item.qty = mainQty; item.totalSellableQty = sellable; }
-        item.totalPhysicalQty = inv.onHand;
-        changed++;
+      for (const item of state.items ?? []) {
+        const inv = bySku.get(String(item.sku ?? "").trim().toLowerCase());
+        if (!inv) { notInDeposco++; continue; }
+        matched++;
+        const coAtpQty = coAtpBySku.get(normalizeSku(String(item.sku ?? "")));
+        const sellable = coAtpQty ?? inv.available;
+        const mainQty = coAtpQty ?? (/-parent$/i.test(String(item.sku ?? "").trim()) ? inv.onHand : inv.available);
+        // Items whose quantity was just imported from a Deposco export keep that quantity and its
+        // Total Sellable Qty (physical still follows the API) until the hold expires.
+        // Live Total Sellable Qty from Deposco beats an imported snapshot, so the import hold only
+        // applies to items Deposco didn't return a figure for this time.
+        const held = coAtpQty === undefined && isImportHeld(item, now.getTime());
+        if (coAtpQty !== undefined && item.qtySource === "import") { delete item.qtySource; delete item.qtyImportedAt; }
+        if (!held && item.qtySource === "import") { delete item.qtySource; delete item.qtyImportedAt; }
+        if (held) heldCount++;
+        if ((!held && (item.qty !== mainQty || item.totalSellableQty !== sellable)) || item.totalPhysicalQty !== inv.onHand) {
+          if (!held) { item.qty = mainQty; item.totalSellableQty = sellable; }
+          item.totalPhysicalQty = inv.onHand;
+          changed++;
+        }
+        if (history.enabled === true && !history.error) {
+          const key = String(item.sku ?? "").trim().toLowerCase();
+          // No recorded outflow in a window that's been tracked long enough means 0, not "unknown".
+          item.velocity7d = historyDays >= 1 ? (velocity7.get(key) ?? 0) : null;
+          item.velocity30d = historyDays >= 1 ? (velocity30.get(key) ?? 0) : null;
+          item.velocityDays = historyDays;
+        }
       }
-      if (history.enabled === true && !history.error) {
-        const key = String(item.sku ?? "").trim().toLowerCase();
-        // No recorded outflow in a window that's been tracked long enough means 0, not "unknown".
-        item.velocity7d = historyDays >= 1 ? (velocity7.get(key) ?? 0) : null;
-        item.velocity30d = historyDays >= 1 ? (velocity30.get(key) ?? 0) : null;
-        item.velocityDays = historyDays;
+
+      state.meta = state.meta ?? {};
+      state.meta.lastInventorySync = {
+        at: new Date().toISOString(),
+        facilities,
+        records: records.length,
+        matched,
+        changed,
+        heldFromImport: heldCount,
+        totalSellable: { requested: coAtp.requested, returned: coAtpBySku.size, failedBatches: coAtp.failedBatches, error: coAtp.error ?? null },
+        history,
+      };
+
+      const writeTimestamp = new Date().toISOString();
+      const { data: savedRows, error: writeError } = await supabase
+        .from("app_state")
+        .update({ data: state, updated_at: writeTimestamp })
+        // The sync must never overwrite an edit made after its snapshot was read.
+        .eq("id", 1)
+        .eq("updated_at", row.updated_at)
+        .select("id");
+      if (writeError) throw writeError;
+      if (!savedRows || savedRows.length !== 1) {
+        // Someone saved while we were working. Re-read the newer data and apply our changes to it again
+        // (our changes only set sync-owned fields), instead of giving up for the day.
+        if (attempt < 3) { await new Promise((r) => setTimeout(r, 500 * (attempt + 1))); continue; }
+        return new Response(
+          JSON.stringify({ ok: false, conflict: true, error: "Supply Desk changed while the Deposco sync was running; no user edits were overwritten. Run the sync again." }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
-    }
 
-    state.meta = state.meta ?? {};
-    state.meta.lastInventorySync = {
-      at: new Date().toISOString(),
-      facilities,
-      records: records.length,
-      matched,
-      changed,
-      heldFromImport: heldCount,
-      totalSellable: { requested: coAtp.requested, returned: coAtpBySku.size, failedBatches: coAtp.failedBatches, error: coAtp.error ?? null },
-      history,
-    };
-
-    const writeTimestamp = new Date().toISOString();
-    const { data: savedRows, error: writeError } = await supabase
-      .from("app_state")
-      .update({ data: state, updated_at: writeTimestamp })
-      // The sync must never overwrite an edit made after its snapshot was read.
-      .eq("id", 1)
-      .eq("updated_at", row.updated_at)
-      .select("id");
-    if (writeError) throw writeError;
-    if (!savedRows || savedRows.length !== 1) {
       return new Response(
-        JSON.stringify({ ok: false, conflict: true, error: "Supply Desk changed while the Deposco sync was running; no user edits were overwritten. Run the sync again." }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ ok: true, records: records.length, deposcoSkus: bySku.size, matched, changed, notInDeposco, heldFromImport: heldCount, totalSellable: { requested: coAtp.requested, returned: coAtpBySku.size, failedBatches: coAtp.failedBatches }, history }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-
-    return new Response(
-      JSON.stringify({ ok: true, records: records.length, deposcoSkus: bySku.size, matched, changed, notInDeposco, heldFromImport: heldCount, totalSellable: { requested: coAtp.requested, returned: coAtpBySku.size, failedBatches: coAtp.failedBatches }, history }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    throw new Error("Could not save the inventory sync after several attempts because Supply Desk kept changing.");
   } catch (err) {
     console.error(err);
     return new Response(

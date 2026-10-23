@@ -882,6 +882,19 @@
 </dialog>
 
 <!-- Confirm dialog -->
+<dialog id="dlg-newpw">
+  <form method="dialog" id="form-newpw">
+    <div class="dlg-head"><h2>Set a new password</h2></div>
+    <div class="dlg-body">
+      <p style="margin:0 0 10px;font-size:13.5px;color:var(--ink-muted);">You followed a password-reset link. Choose a new password for your Supply Desk login.</p>
+      <div class="field"><label for="newpw-1">New password</label><input type="password" id="newpw-1" autocomplete="new-password" minlength="8" required></div>
+      <div class="field"><label for="newpw-2">Type it again</label><input type="password" id="newpw-2" autocomplete="new-password" minlength="8" required></div>
+      <div class="hint" id="newpw-msg" style="color:var(--critical);min-height:1.2em;"></div>
+    </div>
+    <div class="dlg-foot"><button type="submit" class="btn btn-primary" id="newpw-save">Save password</button></div>
+  </form>
+</dialog>
+
 <dialog id="dlg-confirm">
   <div class="dlg-head"><h2 id="confirm-title">Are you sure?</h2><button type="button" class="close" data-close>✕</button></div>
   <div class="dlg-body"><p id="confirm-body" style="margin:0;font-size:13.5px;color:var(--ink-muted);"></p></div>
@@ -1788,7 +1801,6 @@
             applyingRemoteSnapshot = false;
             renderAll();
             setSaveState("saved", "Saved");
-            loadAuditHistory();
           })
           .subscribe();
       }catch(e){
@@ -1831,7 +1843,6 @@
       hideBanner();
       setSaveState("saved", "Saved");
       saved = true;
-      loadAuditHistory();
     }catch(e){
       setSaveState("error", "Couldn't save");
       if (e && e.code === "CONFLICT"){
@@ -1974,43 +1985,88 @@
     else if (currentView === "history") renderAuditHistory();
   }
 
+  // The History list is loaded only when that screen is opened, and without the data snapshots (each
+  // is a full copy of everything — hundreds of KB). A snapshot is fetched only when you restore.
   async function loadAuditHistory(){
     try {
       const { data, error } = await supabaseClient
         .from("app_state_history")
-        .select("id, changed_at, actor_type, changed_fields, before_data")
+        .select("id, changed_at, actor_type, changed_fields")
         .order("changed_at", { ascending:false })
-        .limit(100);
+        .limit(50);
       if (error) throw error;
       auditRows = data || [];
     } catch (e) {
-      // The history migration may not be deployed yet. Keep the main app usable while
-      // making the missing capability visible on the History screen.
       auditRows = [];
     }
   }
 
+  const RESTORE_COLLECTIONS = [
+    { key:"items", label:"item", name: x => x.sku },
+    { key:"vendors", label:"vendor", name: x => x.name },
+    { key:"pos", label:"purchase order", name: x => x.number },
+    { key:"kits", label:"kit record", name: x => x.id },
+    { key:"plannerPlans", label:"planner plan", name: x => x.name || x.id }
+  ];
+  // What one history entry changed, record by record (matched by id): the entry's own before/after
+  // copies are compared, and only those records are put back. Everything else — later edits, newer
+  // syncs, counters — is left exactly as it is now.
+  function planRestore(before, after){
+    const changes = [];
+    for (const col of RESTORE_COLLECTIONS){
+      const b = new Map((before[col.key] || []).map(x => [x.id, x]));
+      const a = new Map((after[col.key] || []).map(x => [x.id, x]));
+      for (const id of new Set([...b.keys(), ...a.keys()])){
+        if (JSON.stringify(b.get(id)) === JSON.stringify(a.get(id))) continue;
+        changes.push({ col, id, before: b.get(id) });
+      }
+    }
+    return changes;
+  }
+  function applyRestore(changes){
+    for (const { col, id, before } of changes){
+      const list = state[col.key] = state[col.key] || [];
+      const idx = list.findIndex(x => x.id === id);
+      if (before){
+        const copy = JSON.parse(JSON.stringify(before));
+        if (idx >= 0) list[idx] = copy; else list.push(copy);
+      } else if (idx >= 0){
+        list.splice(idx, 1);
+      }
+    }
+  }
+
   async function restoreAuditEntry(id){
-    const row = auditRows.find(r => String(r.id) === String(id));
-    if (!row || !row.before_data) return;
-    const fields = Array.isArray(row.changed_fields) ? row.changed_fields : [];
+    const { data: snap, error } = await supabaseClient
+      .from("app_state_history").select("before_data, after_data, changed_at").eq("id", id).single();
+    if (error || !snap){ showToast("Couldn't load that history entry.", true); return; }
+    if (!snap.before_data || !snap.after_data){
+      showToast("Automatic syncs don't keep a restorable copy. Only edits made by a person can be restored.", true);
+      return;
+    }
+    const changes = planRestore(snap.before_data, snap.after_data);
+    if (!changes.length){ showToast("That entry didn't change any records, so there's nothing to restore.", true); return; }
+    const counts = {};
+    changes.forEach(c => { counts[c.col.label] = (counts[c.col.label] || 0) + 1; });
+    const summary = Object.entries(counts).map(([label, n]) => `${n} ${label}${n === 1 ? "" : "s"}`).join(", ");
+    const examples = changes.slice(0, 5).map(c => String((c.before ? c.col.name(c.before) : c.id) ?? c.id)).join(", ");
     const ok = await confirmDialog(
-      "Restore this snapshot?",
-      `This will restore the state from ${fmtDateTime(row.changed_at)} and replace the current values for the recorded change${fields.length === 1 ? "" : "s"}. The restore itself will be recorded in History.`
+      "Put these records back?",
+      `This undoes the change made on ${fmtDateTime(snap.changed_at)} for ${summary} (${examples}${changes.length > 5 ? ", …" : ""}), setting each back to how it was before. Records that entry didn't touch, and anything changed later, stay as they are. The restore itself is recorded in History.`
     );
     if (!ok) return;
-    state = normalizeState(row.before_data);
+    applyRestore(changes);
     renderAll();
     const saved = await persist();
     if (!saved){
       const { data: current } = await supabaseClient.from("app_state").select("data, updated_at").eq("id", 1).single();
       if (current?.data){ state = normalizeState(current.data); loadedUpdatedAt = current.updated_at || null; renderAll(); }
-      showToast("The snapshot could not be restored because shared data changed. No restore was applied.", true);
+      showToast("Couldn't restore because shared data changed. Nothing was changed.", true);
       return;
     }
     await loadAuditHistory();
     if (currentView === "history") renderAuditHistory();
-    showToast("Snapshot restored.");
+    showToast(`Restored ${summary}.`);
   }
 
   function fmtDateTime(value){
@@ -2025,11 +2081,13 @@
       root.innerHTML = `<div class="panel"><div class="panel-empty">No audit history is available yet. Apply the app_state audit migration, then the next change will appear here.</div></div>`;
       return;
     }
-    root.innerHTML = `<div class="panel"><div class="panel-head"><h2>Recent changes</h2><span class="cell-sub">${auditRows.length} snapshots</span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>When</th><th>Source</th><th>Changed fields</th><th></th></tr></thead><tbody>${auditRows.map(r => {
+    root.innerHTML = `<div class="panel"><div class="panel-head"><h2>Recent changes</h2><span class="cell-sub">latest ${auditRows.length} changes · <button type="button" class="btn btn-sm btn-quiet" id="history-refresh">Refresh</button></span></div><div class="panel-body"><div class="table-wrap"><table><thead><tr><th>When</th><th>Source</th><th>Changed</th><th></th></tr></thead><tbody>${auditRows.map(r => {
       const fields = Array.isArray(r.changed_fields) ? r.changed_fields : [];
-      return `<tr><td>${esc(fmtDateTime(r.changed_at))}</td><td><span class="pill pill-${r.actor_type === "service" ? "accent" : "neutral"}">${esc(r.actor_type || "unknown")}</span></td><td class="cell-sub mono">${esc(fields.slice(0,12).join(", "))}${fields.length > 12 ? ` … +${fields.length-12}` : ""}</td><td class="actions"><button type="button" class="btn btn-sm" data-restore-history="${esc(r.id)}">Restore prior snapshot</button></td></tr>`;
+      return `<tr><td>${esc(fmtDateTime(r.changed_at))}</td><td><span class="pill pill-${r.actor_type === "service" ? "accent" : "neutral"}">${esc(r.actor_type || "unknown")}</span></td><td class="cell-sub mono">${esc(fields.slice(0,12).join(", "))}${fields.length > 12 ? ` … +${fields.length-12}` : ""}</td><td class="actions">${r.actor_type === "service" ? '<span class="cell-sub">automatic sync</span>' : `<button type="button" class="btn btn-sm" data-restore-history="${esc(r.id)}">Undo this change</button>`}</td></tr>`;
     }).join("")}</tbody></table></div></div></div>`;
     root.querySelectorAll("[data-restore-history]").forEach(btn => btn.onclick = () => restoreAuditEntry(btn.dataset.restoreHistory));
+    const refresh = document.getElementById("history-refresh");
+    if (refresh) refresh.onclick = () => loadAuditHistory().then(renderAuditHistory);
   }
 
   /* ============ dashboard ============ */
@@ -3113,6 +3171,7 @@
     renderPlannerNavSub();
     renderPageChrome();
     renderView();
+    if (view === "history") loadAuditHistory().then(() => { if (currentView === "history") renderAuditHistory(); });
   }
   document.getElementById("nav").addEventListener("click", e => {
     const btn = e.target.closest("button[data-view]");
@@ -4717,12 +4776,13 @@
     const holdLive = document.getElementById("imp-hold-live").checked;
 
     const changes = plan.matched.filter(m => m.newQty !== m.oldQty).length;
+    const holding = document.getElementById("imp-hold-live").checked ? plan.matched.length : 0;
     const additions = addNew ? plan.added.length : 0;
     const zeroed = zeroMissing ? plan.missing.length : 0;
     const destructive = zeroed > 0;
     const approved = await confirmDialog(
       destructive ? "Apply inventory import and zero missing items?" : "Apply inventory import?",
-      `This will update ${changes} existing SKU${changes === 1 ? "" : "s"}, add ${additions} new SKU${additions === 1 ? "" : "s"}, and set ${zeroed} missing SKU${zeroed === 1 ? "" : "s"} to zero. Review the preview before continuing.`
+      `This will change the quantity on ${changes} existing SKU${changes === 1 ? "" : "s"}${holding ? ` (and keep the imported numbers for ${holding} matched SKU${holding === 1 ? "" : "s"} for 3 days)` : ""}, add ${additions} new SKU${additions === 1 ? "" : "s"}, and set ${zeroed} missing SKU${zeroed === 1 ? "" : "s"} to zero. Review the preview before continuing.`
     );
     if (!approved) return;
 
@@ -4769,7 +4829,6 @@
   async function boot(){
     renderAll();
     await subscribeState();
-    await loadAuditHistory();
     initPlannerPlans();
     renderAll();
 
@@ -4957,6 +5016,28 @@
     if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
     await supabaseClient.auth.signOut();
     location.reload();
+  });
+  // Landing from a "Forgot password?" email: Supabase signs the person in with a short-lived recovery
+  // session; this lets them actually choose the new password.
+  supabaseClient.auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY"){
+      const dlg = document.getElementById("dlg-newpw");
+      if (!dlg.open) dlg.showModal();
+    }
+  });
+  document.getElementById("form-newpw").addEventListener("submit", async e => {
+    e.preventDefault();
+    const a = document.getElementById("newpw-1").value, b = document.getElementById("newpw-2").value;
+    const msg = document.getElementById("newpw-msg");
+    if (a !== b){ msg.textContent = "The two passwords don't match."; return; }
+    if (a.length < 8){ msg.textContent = "Use at least 8 characters."; return; }
+    const btn = document.getElementById("newpw-save");
+    btn.disabled = true; msg.textContent = "";
+    const { error } = await supabaseClient.auth.updateUser({ password: a });
+    btn.disabled = false;
+    if (error){ msg.textContent = error.message || "Couldn't save the new password."; return; }
+    document.getElementById("dlg-newpw").close();
+    showToast("Password updated.");
   });
   (async () => {
     const { data } = await supabaseClient.auth.getSession();
