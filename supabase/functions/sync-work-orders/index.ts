@@ -19,6 +19,7 @@
 // via pg_cron.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { isRecentBlankStatus } from "./status.ts";
 
 // Without these, the browser's CORS preflight (an OPTIONS request the
 // browser sends before the real POST, since it carries an Authorization
@@ -72,21 +73,41 @@ async function getDeposcoAccessToken(): Promise<string> {
 }
 
 async function getOpenWorkOrders(accessToken: string): Promise<any[]> {
+  const headers = { Authorization: `Bearer ${accessToken}`, Accept: "application/json" };
   const url = "https://api.deposco.com/latest/workOrders?" + new URLSearchParams({
     status: "Open",
     businessUnit: "Better Days",
   });
-  const resp = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json",
-    },
-  });
+  const resp = await fetch(url, { headers });
   if (!resp.ok) {
     throw new Error(`Deposco workOrders request failed: ${resp.status} ${await resp.text()}`);
   }
-  const data = await resp.json();
-  return data.data ?? [];
+  const open: any[] = (await resp.json()).data ?? [];
+
+  // Orders Deposco reports with no status that were updated in the last few days are still active
+  // (see status.ts). The unfiltered list comes newest first, so two pages cover several days.
+  try {
+    const seen = new Set(open.map((w) => String(w.number)));
+    let next: string | null = "https://api.deposco.com/latest/workOrders?" + new URLSearchParams({
+      businessUnit: "Better Days",
+      pageSize: "100",
+    });
+    for (let page = 0; next && page < 2; page++) {
+      const r: Response = await fetch(next, { headers });
+      if (!r.ok) break;
+      const data: any = await r.json();
+      for (const wo of data.data ?? []) {
+        if (!seen.has(String(wo.number)) && isRecentBlankStatus(wo, Date.now())) {
+          open.push(wo);
+          seen.add(String(wo.number));
+        }
+      }
+      next = data.complete ? null : ((data.links ?? []).find((l: any) => l.rel === "next")?.href ?? null);
+    }
+  } catch (e) {
+    console.error("blank-status work-order check skipped:", e);
+  }
+  return open;
 }
 
 // The platform's injected SUPABASE_SERVICE_ROLE_KEY is no longer byte-identical
