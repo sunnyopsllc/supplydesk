@@ -2633,8 +2633,15 @@
     const tenItem = correlatingTenItem(item);
     const tenOnHand = tenItem ? Number(tenItem.qty)||0 : 0;
     const reserveTenPacksTotal = tenItem ? Math.ceil((Number(tenItem.salesPerDay)||0) * (Number(reserveDays)||0)) : 0;
+    // Finished -10 packs already on the way count toward the reserve too: open work orders synced
+    // from Deposco plus a hand-entered "WO requested" that Deposco doesn't show yet (that one
+    // drops out of pendingWoWaiting the moment the real WO arrives, so it's never counted twice).
+    const pendingOpenWoPacks = tenItem && Array.isArray(tenItem.openWorkOrders) ? tenItem.openWorkOrders.reduce((n, w) => n + (Number(w.qty)||0), 0) : 0;
+    const pendingRequestedWoPacks = tenItem ? Number(pendingWoWaiting(tenItem)?.qty)||0 : 0;
+    const pendingWoPacks = pendingOpenWoPacks + pendingRequestedWoPacks;
     const reserveTenPacksCoveredByStock = Math.min(reserveTenPacksTotal, tenOnHand);
-    const reserveTenPacks = Math.max(0, reserveTenPacksTotal - reserveTenPacksCoveredByStock);
+    const reserveTenPacksCoveredByWo = Math.min(reserveTenPacksTotal - reserveTenPacksCoveredByStock, pendingWoPacks);
+    const reserveTenPacks = Math.max(0, reserveTenPacksTotal - reserveTenPacksCoveredByStock - reserveTenPacksCoveredByWo);
     const reserve = reserveTenPacks * KIT_COMPONENT_RATIO;
 
     const combinedOnHand = (Number(stkVariant?.qty)||0) + (Number(stkv3Variant?.qty)||0);
@@ -2644,7 +2651,7 @@
     // in the Supply column for reference but aren't treated as usable until they've actually
     // arrived (per explicit instruction).
     const baseSurplus = Math.max(0, onHand - reserve);
-    return { item, poolKey, stkVariant, stkv3Variant, isKitComponent, onHand, incoming, supply, tenItem, tenOnHand, reserveTenPacksTotal, reserveTenPacksCoveredByStock, reserveTenPacks, reserve, combinedOnHand, combinedBuildableTenPacks, baseSurplus };
+    return { item, poolKey, stkVariant, stkv3Variant, isKitComponent, onHand, incoming, supply, tenItem, tenOnHand, reserveTenPacksTotal, reserveTenPacksCoveredByStock, reserveTenPacksCoveredByWo, pendingOpenWoPacks, pendingRequestedWoPacks, reserveTenPacks, reserve, combinedOnHand, combinedBuildableTenPacks, baseSurplus };
   }
   function renderPlanner(){
     const root = document.getElementById("view-planner");
@@ -3003,7 +3010,8 @@
               <td class="num">${r.base.reserve.toLocaleString("en-US")}${r.base.tenItem ? `
                 <div class="cell-sub">${r.base.reserveTenPacksTotal.toLocaleString("en-US")} packs needed (${esc(r.base.tenItem.sku)} @ ${(Number(r.base.tenItem.salesPerDay)||0).toLocaleString("en-US")}/day)</div>
                 <div class="cell-sub">− ${r.base.reserveTenPacksCoveredByStock.toLocaleString("en-US")} already covered by ${r.base.tenOnHand.toLocaleString("en-US")} -10 on hand</div>
-                <div class="cell-sub">= ${r.base.reserveTenPacks.toLocaleString("en-US")} packs to hold back in components</div>` : `<div class="cell-sub">no correlating -10 SKU found</div>`}
+                ${r.base.pendingOpenWoPacks + r.base.pendingRequestedWoPacks > 0 ? `<div class="cell-sub">− ${r.base.reserveTenPacksCoveredByWo.toLocaleString("en-US")} covered by pending WOs (${[r.base.pendingOpenWoPacks > 0 ? `${r.base.pendingOpenWoPacks.toLocaleString("en-US")} open in Deposco` : "", r.base.pendingRequestedWoPacks > 0 ? `${r.base.pendingRequestedWoPacks.toLocaleString("en-US")} requested` : ""].filter(Boolean).join(" + ")})</div>` : ""}
+                <div class="cell-sub">=${r.base.reserveTenPacks.toLocaleString("en-US")} packs to hold back in components</div>` : `<div class="cell-sub">no correlating -10 SKU found</div>`}
                 <div class="cell-sub">Combined -STK+-STKV3 on hand builds ${r.base.combinedBuildableTenPacks.toLocaleString("en-US")} packs (${r.base.combinedOnHand.toLocaleString("en-US")} units)</div></td>
               <td class="num">${r.availableBefore.toLocaleString("en-US")}${r.claimedByEarlier > 0 ? `<div class="cell-sub">− ${r.claimedByEarlier.toLocaleString("en-US")} already claimed by earlier output${r.claimedByEarlier===1?"":"s"}</div>` : ""}</td>
               <td class="num">${r.ratio > 0 ? r.requiredForTarget.toLocaleString("en-US") : "—"}</td>
