@@ -1755,12 +1755,16 @@
         if (settled) return;
         settled = true;
         ok.removeEventListener("click", onOk);
+        dlg.removeEventListener("close", onClose);
         if (dlg.open) dlg.close();
         resolve(v);
       }
       function onOk(){ cleanup(true); }
+      // close events are dispatched asynchronously, so one from a previous confirm can land after a
+      // second confirm has already reopened this dialog — only a close of an actually-closed dialog counts
+      function onClose(){ if (!dlg.open) cleanup(false); }
       ok.addEventListener("click", onOk);
-      dlg.addEventListener("close", () => cleanup(false), { once:true });
+      dlg.addEventListener("close", onClose);
       dlg.showModal();
     });
   }
@@ -3420,9 +3424,9 @@
     const el = document.getElementById("po-receipt-history");
     if (!el) return;
     const rows = [];
-    po.lines.forEach(line => {
+    po.lines.forEach((line, lineIdx) => {
       const it = itemById(line.itemId);
-      (line.receipts || []).forEach(r => rows.push({ ...r, item: it }));
+      (line.receipts || []).forEach((r, receiptIdx) => rows.push({ ...r, item: it, lineIdx, receiptIdx }));
     });
     if (rows.length === 0){ el.innerHTML = ""; return; }
     rows.sort((a,b) => (b.date||"").localeCompare(a.date||""));
@@ -3430,18 +3434,65 @@
       <div class="hint" style="margin-bottom:6px;">Receipt history</div>
       <div class="table-wrap" style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;">
         <table class="lines-table">
-          <thead><tr><th>Date</th><th>Item</th><th class="num">Qty</th><th>Lot #</th></tr></thead>
+          <thead><tr><th>Date</th><th>Item</th><th class="num">Qty</th><th>Lot #</th><th></th></tr></thead>
           <tbody>
             ${rows.map(r => `<tr>
               <td>${fmtDate(r.date)}</td>
               <td>${r.item ? esc(r.item.name) : '<span class="cell-sub">Deleted item</span>'}</td>
               <td class="num mono">${Number(r.qty)||0}</td>
               <td>${r.lotNumber ? esc(r.lotNumber) : '<span class="cell-sub">—</span>'}</td>
+              <td class="num"><button type="button" class="btn btn-sm btn-quiet receipt-del" data-line="${r.lineIdx}" data-receipt="${r.receiptIdx}" title="Remove this receiving entry" aria-label="Remove this receiving entry">✕</button></td>
             </tr>`).join("")}
           </tbody>
         </table>
       </div>
     `;
+    el.querySelectorAll(".receipt-del").forEach(b => b.onclick = () => deleteReceipt(po.id, Number(b.dataset.line), Number(b.dataset.receipt)));
+  }
+  // Removes one logged receiving entry: takes its qty back off the line's "received" total (so the
+  // PO's Received/Outstanding and status recompute) and, if asked, off the item's on-hand too.
+  // On-hand is a separate question because a Deposco inventory sync overwrites it — if the sync
+  // already ran since this receipt, subtracting would remove stock a second time.
+  async function deleteReceipt(poId, lineIdx, receiptIdx){
+    const po = poById(poId);
+    const line = po && po.lines[lineIdx];
+    const receipt = line && Array.isArray(line.receipts) ? line.receipts[receiptIdx] : null;
+    if (!receipt) return;
+    const it = itemById(line.itemId);
+    const qty = Number(receipt.qty)||0;
+    const label = `${qty} × ${it ? it.sku : "deleted item"} received ${fmtDate(receipt.date)}${receipt.lotNumber ? ` (lot ${receipt.lotNumber})` : ""}`;
+    if (!await confirmDialog("Remove this receiving entry?", `${label} on PO ${po.number}. It will be taken off the PO's received total.`)) return;
+    let adjustOnHand = false;
+    if (it && qty > 0){
+      adjustOnHand = await confirmDialog(`Also take ${qty} off on-hand?`, `${it.sku} is at ${(Number(it.qty)||0).toLocaleString("en-US")} on hand. Confirm to subtract ${qty} (use this if the receipt was a mistake that never reached Deposco). Cancel to leave on-hand as it is (use this if Deposco's inventory sync has already picked it up). The receiving entry is removed either way.`);
+    }
+    // the dialogs above are async — re-find the entry in case anything shifted meanwhile
+    const idx = line.receipts.indexOf(receipt);
+    if (idx < 0) return;
+    line.receipts.splice(idx, 1);
+    line.qtyReceived = Math.max(0, (Number(line.qtyReceived)||0) - qty);
+    if (adjustOnHand) it.qty = Math.max(0, (Number(it.qty)||0) - qty);
+    // a PO that was marked received/partial may no longer be; recomputePoStatus only moves forward
+    if (po.status !== "cancelled" && po.status !== "draft"){
+      const received = poReceivedTotal(po), ordered = poOrderedTotal(po);
+      if (received <= 0){ po.status = "sent"; po.receivedDate = ""; }
+      else if (received < ordered){ po.status = "partial"; po.receivedDate = ""; }
+    }
+    // keep anything typed into "Receive now" across the re-render
+    const typed = {};
+    document.querySelectorAll("#po-receive-body tr").forEach(tr => {
+      typed[tr.dataset.idx] = { qty: tr.querySelector(".recv-qty").value, lot: tr.querySelector(".recv-lot").value };
+    });
+    const date = document.getElementById("po-recv-date").value;
+    renderReceiveSection(po);
+    document.getElementById("po-recv-date").value = date || todayISO();
+    document.querySelectorAll("#po-receive-body tr").forEach(tr => {
+      const t = typed[tr.dataset.idx];
+      if (t){ tr.querySelector(".recv-qty").value = t.qty; tr.querySelector(".recv-lot").value = t.lot; }
+    });
+    updatePoStatTiles(po);
+    commit();
+    showToast(`Removed receiving entry${adjustOnHand ? ` and took ${qty} off ${it.sku}` : ""}.`);
   }
   // Ordered / Received / Outstanding, counting whatever's typed into "Receive now" but not
   // yet saved — so the tiles reflect what you're about to record, not just what's already on
