@@ -639,6 +639,10 @@
           <input id="in-po-number" name="poNumber" placeholder="Auto-generated if left blank">
         </div>
         <div class="field">
+          <label for="in-po-placed">Date placed with vendor</label>
+          <input id="in-po-placed" name="placed" type="date">
+        </div>
+        <div class="field">
           <label for="in-po-expected">Expected delivery</label>
           <input id="in-po-expected" name="expected" type="date">
         </div>
@@ -2427,7 +2431,7 @@
       return;
     }
     panel.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>PO</th><th>Vendor</th><th>Status</th><th>Created</th><th>Expected</th><th class="num">Lines</th><th class="num">Total</th></tr></thead>
+      <thead><tr><th>PO</th><th>Vendor</th><th>Status</th><th>Placed</th><th>Expected</th><th class="num">Lines</th><th class="num">Total</th></tr></thead>
       <tbody>
         ${rows.map(p => {
           const v = vendorById(p.vendorId);
@@ -3577,11 +3581,12 @@
       document.getElementById("po-submit").textContent = "Save changes";
       vendorSelect.value = po.vendorId;
       form.poNumber.value = po.number || "";
+      form.placed.value = po.created || "";
       form.expected.value = po.expected || "";
       form.notes.value = po.notes || "";
       document.getElementById("po-kv").style.display = "flex";
       document.getElementById("po-kv").innerHTML = `
-        <div><div class="k">Created</div><div class="v">${fmtDate(po.created)}</div></div>
+        <div><div class="k">Placed</div><div class="v">${fmtDate(po.created)}</div></div>
         <div><div class="k">Order total</div><div class="v">${fmtMoney(poTotal(po))}</div></div>
         ${po.receivedDate ? `<div><div class="k">Received</div><div class="v">${fmtDate(po.receivedDate)}</div></div>` : ""}
       `;
@@ -3628,6 +3633,7 @@
       }
       if (prefill && prefill.vendorId) vendorSelect.value = prefill.vendorId;
       form.poNumber.value = poNumber(state.counters.po || 1);
+      form.placed.value = todayISO();
       form.expected.value = "";
     }
     renderPoLines();
@@ -3690,6 +3696,7 @@
 
       po.vendorId = vendorId;
       po.number = form.poNumber.value.trim() || po.number;
+      po.created = form.placed.value || po.created || todayISO();
       po.expected = form.expected.value || "";
       po.notes = form.notes.value.trim();
       po.lines = validLines.map(l => ({
@@ -3709,7 +3716,7 @@
         // tentative draft — so it starts "sent" and counts toward "On PO" right away, no
         // extra click needed.
         status: "sent",
-        created: todayISO(),
+        created: form.placed.value || todayISO(),
         expected: form.expected.value || "",
         notes: form.notes.value.trim(),
         receivedDate: "",
