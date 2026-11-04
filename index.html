@@ -1156,14 +1156,16 @@
   }
   // The "WO requested" entry box (or a Clear button once one is set) used on both the dashboard
   // and the Inventory table — one implementation so they always behave the same.
-  // Days of stock on hand if `units` more arrive: (current qty + units) at the item's sale rate.
+  // Days of stock on hand if `units` more arrive: (current qty + units + whatever is already on
+  // open work orders in Deposco) at the item's sale rate.
   function woDaysNote(i, units){
     if (!(units > 0)) return "";
     const spd = Number(i.salesPerDay) || 0;
     if (spd <= 0) return "no sale/day set";
+    const open = (Array.isArray(i.openWorkOrders) ? i.openWorkOrders : []).reduce((n, w) => n + (Number(w.qty) || 0), 0);
     const now = Math.floor(daysOfStock(i));
-    const total = Math.floor(((Number(i.qty) || 0) + units) / spd);
-    return `${now}d now → <strong>${total}d</strong> on hand with this WO`;
+    const total = Math.floor(((Number(i.qty) || 0) + open + units) / spd);
+    return `${now}d now → <strong>${total}d</strong> on hand with this WO${open > 0 ? ` + ${open.toLocaleString("en-US")} already on open WOs` : ""}`;
   }
   function pendingWoCell(i){
     const pending = pendingWoWaiting(i);
