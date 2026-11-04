@@ -1135,8 +1135,21 @@
   }
   // days of on-hand stock left at the item's current sale rate; null when there's no sale/day
   // figure to divide by (can't be computed, not "infinite" — kept out of the low-runway list).
+  // Items in the Mailers category don't have a hand-entered sale/day that stays accurate — their
+  // rate is the tracked 30-day velocity, which the daily inventory sync refreshes. Falls back to
+  // the entered sale/day until a velocity has been tracked for the item.
+  function isMailerItem(it){ return String(it.category || "").trim().toLowerCase() === "mailers"; }
+  function usesVelocityRate(it){ return isMailerItem(it) && Number.isFinite(it.velocity30d) && it.velocity30d > 0; }
+  function saleRate(it){ return usesVelocityRate(it) ? it.velocity30d : (Number(it.salesPerDay) || 0); }
+  // the Sale/day cell: the rate in use, tagged when it's the velocity standing in for sale/day
+  function saleRateCell(it){
+    const rate = saleRate(it);
+    const txt = rate.toLocaleString("en-US", { maximumFractionDigits: 2 });
+    if (usesVelocityRate(it)) return `${txt}<div class="cell-sub" title="Mailers use the tracked 30-day velocity as their sale/day">velocity</div>`;
+    return rate ? txt : '<span class="cell-sub">—</span>';
+  }
   function daysOfStock(it){
-    const spd = Number(it.salesPerDay) || 0;
+    const spd = saleRate(it);
     if (spd <= 0) return null;
     return (Number(it.qty) || 0) / spd;
   }
@@ -1160,7 +1173,7 @@
   // open work orders in Deposco) at the item's sale rate.
   function woDaysNote(i, units){
     if (!(units > 0)) return "";
-    const spd = Number(i.salesPerDay) || 0;
+    const spd = saleRate(i);
     if (spd <= 0) return "no sale/day set";
     const open = (Array.isArray(i.openWorkOrders) ? i.openWorkOrders : []).reduce((n, w) => n + (Number(w.qty) || 0), 0);
     const now = Math.floor(daysOfStock(i));
@@ -1373,7 +1386,7 @@
               return `<tr>
                 <td><div class="cell-primary">${esc(item.name)}</div><div class="cell-sub mono">${esc(item.sku)}</div></td>
                 <td class="num">${Number(item.qty)||0}</td>
-                <td class="num">${Number(item.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2})}</td>
+                <td class="num">${saleRateCell(item)}</td>
                 <td class="num"><span class="pill pill-${critical?"critical":"warn"}">${Math.floor(days)}d</span></td>
               </tr>`;
             }).join("")}
@@ -2074,7 +2087,7 @@
                   <td>${pendingWoCell(i)}</td>
                   <td class="num">${Number.isFinite(i.totalPhysicalQty) ? i.totalPhysicalQty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
                   <td class="num">${Number.isFinite(i.totalSellableQty) ? i.totalSellableQty.toLocaleString("en-US") : '<span class="cell-sub">—</span>'}</td>
-                  <td class="num">${Number(i.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2})}</td>
+                  <td class="num">${saleRateCell(i)}</td>
                   <td class="num"><span class="pill pill-${critical?'critical':'warn'}">${Math.floor(days)}d</span></td>
                   <td class="num">${/-10$/i.test(i.sku) ? '<span class="cell-sub">—</span>' : onPoCell(i.id)}</td>
                   <td class="num">${is10Pack ? kitVariantCell(findKitVariant(i.sku, "stk")) : '<span class="cell-sub">—</span>'}</td>
@@ -2382,7 +2395,7 @@
             ${stkCols}
             ${showStkCols ? "" : `<td class="num">${Number(i.reorderPoint)||0}</td>`}
             <td><span class="pill pill-${st.key}">${st.label}</span></td>
-            <td class="num">${i.salesPerDay ? Number(i.salesPerDay).toLocaleString("en-US",{maximumFractionDigits:2}) : '<span class="cell-sub">—</span>'}</td>
+            <td class="num">${saleRateCell(i)}</td>
             <td class="num">${Number.isFinite(i.velocity30d) ? `${i.velocity30d.toLocaleString("en-US",{maximumFractionDigits:2})}<div class="cell-sub">${Number.isFinite(i.velocity7d) ? i.velocity7d.toLocaleString("en-US",{maximumFractionDigits:2}) : "—"} · ${Math.round(i.velocityDays||0)}d of data</div>` : '<span class="cell-sub">—</span>'}</td>
             <td class="num">${days !== null ? Math.floor(days) + "d" : '<span class="cell-sub">—</span>'}</td>
             ${topUpCol}
