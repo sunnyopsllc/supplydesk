@@ -1156,10 +1156,20 @@
   }
   // The "WO requested" entry box (or a Clear button once one is set) used on both the dashboard
   // and the Inventory table — one implementation so they always behave the same.
+  // Days of stock on hand if `units` more arrive: (current qty + units) at the item's sale rate.
+  function woDaysNote(i, units){
+    if (!(units > 0)) return "";
+    const spd = Number(i.salesPerDay) || 0;
+    if (spd <= 0) return "no sale/day set";
+    const now = Math.floor(daysOfStock(i));
+    const total = Math.floor(((Number(i.qty) || 0) + units) / spd);
+    return `${now}d now → <strong>${total}d</strong> on hand with this WO`;
+  }
   function pendingWoCell(i){
-    return pendingWoWaiting(i)
-      ? `<button type="button" class="btn btn-sm btn-quiet pending-wo-clear" data-id="${i.id}" title="Remove this request">✕ Clear</button>`
-      : `<div style="display:flex;gap:4px;align-items:center;"><input type="number" min="1" step="1" class="pending-wo-input" data-id="${i.id}" placeholder="Units" style="width:78px;padding:5px 7px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);"><button type="button" class="btn btn-sm pending-wo-set" data-id="${i.id}">Set</button></div>`;
+    const pending = pendingWoWaiting(i);
+    return pending
+      ? `<div><button type="button" class="btn btn-sm btn-quiet pending-wo-clear" data-id="${i.id}" title="Remove this request">✕ Clear</button><div class="cell-sub" style="margin-top:3px;">${woDaysNote(i, Number(pending.qty) || 0)}</div></div>`
+      : `<div><div style="display:flex;gap:4px;align-items:center;"><input type="number" min="1" step="1" class="pending-wo-input" data-id="${i.id}" placeholder="Units" style="width:78px;padding:5px 7px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);"><button type="button" class="btn btn-sm pending-wo-set" data-id="${i.id}">Set</button></div><div class="cell-sub pending-wo-days" style="margin-top:3px;"></div></div>`;
   }
   // Wired per view (root) and per cell: both views are in the page at once, so a lookup by item id
   // alone would find the other view's box first.
@@ -1173,6 +1183,12 @@
       commit();
     };
     root.querySelectorAll(".pending-wo-set").forEach(b => b.onclick = () => setPending(b.dataset.id, b.parentElement.querySelector(".pending-wo-input")));
+    // live preview while typing, before it's set
+    root.querySelectorAll(".pending-wo-input").forEach(inp => inp.addEventListener("input", () => {
+      const item = itemById(inp.dataset.id);
+      const out = inp.closest("div").parentElement.querySelector(".pending-wo-days");
+      if (item && out) out.innerHTML = woDaysNote(item, Number(inp.value) || 0);
+    }));
     root.querySelectorAll(".pending-wo-input").forEach(inp => inp.addEventListener("keydown", e => { if (e.key === "Enter") setPending(inp.dataset.id, inp); }));
     root.querySelectorAll(".pending-wo-clear").forEach(b => b.onclick = () => {
       const item = itemById(b.dataset.id);
