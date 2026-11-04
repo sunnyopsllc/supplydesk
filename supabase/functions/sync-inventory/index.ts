@@ -32,7 +32,7 @@
 // (the "Sync inventory" button) or the project's service role key (cron).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { coveredDays, dayKey, isImportHeld, normalizeSku, outflowUnits, velocityPerDay } from "./history.ts";
+import { coveredDays, dayKey, isImportHeld, learnedSalePerDay, normalizeSku, outflowUnits, seasonalReadyOn, velocityPerDay, type Learned } from "./history.ts";
 import { getInboundSince } from "./deposco.ts";
 import { getTotalCoAtp } from "./enterprise.ts";
 
@@ -185,6 +185,8 @@ Deno.serve(async (req) => {
     const now = new Date();
     const velocity7 = new Map<string, number | null>();
     const velocity30 = new Map<string, number | null>();
+    let learned = new Map<string, Learned>();
+    let seasonalOn = "";
     let historyDays = 0;
     const history: Record<string, unknown> = { enabled: false };
     try {
@@ -246,6 +248,11 @@ Deno.serve(async (req) => {
         .map((r) => ({ day: r.day as string, sku: r.sku as string, outflow: Number(r.outflow) || 0 }));
       for (const [k, v] of velocityPerDay(dailyRows, now, firstSeen, 7)) velocity7.set(k, v);
       for (const [k, v] of velocityPerDay(dailyRows, now, firstSeen, 30)) velocity30.set(k, v);
+      // Whole history (never pruned) for the learned lifetime / seasonal sale/day.
+      const allRows = (await fetchAll("inventory_daily", "day,sku,outflow", supabase))
+        .map((r) => ({ day: r.day as string, sku: r.sku as string, outflow: Number(r.outflow) || 0 }));
+      learned = learnedSalePerDay(allRows, now, firstSeen);
+      seasonalOn = seasonalReadyOn(firstSeen);
       history.days = historyDays;
     } catch (e) {
       console.error("inventory history skipped:", e);
@@ -286,6 +293,10 @@ Deno.serve(async (req) => {
           item.velocity7d = historyDays >= 1 ? (velocity7.get(key) ?? 0) : null;
           item.velocity30d = historyDays >= 1 ? (velocity30.get(key) ?? 0) : null;
           item.velocityDays = historyDays;
+          const l = learned.get(key);
+          item.learnedSalePerDay = historyDays >= 1 ? (l?.lifetime ?? 0) : null;
+          item.projectedSalePerDay = l?.projected ?? null;
+          item.projectionReadyOn = seasonalOn || null;
         }
       }
 

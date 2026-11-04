@@ -1148,6 +1148,16 @@
     if (usesVelocityRate(it)) return `${txt}<div class="cell-sub" title="Mailers use the tracked 30-day velocity as their sale/day">velocity</div>`;
     return rate ? txt : '<span class="cell-sub">—</span>';
   }
+  // Learned sale/day (set by the inventory sync): the seasonal projection when a year of history
+  // exists, else the all-time average from the tracked daily outflow.
+  function learnedSaleCell(it){
+    const f = n => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+    if (Number.isFinite(it.projectedSalePerDay)){
+      return `${f(it.projectedSalePerDay)}<div class="cell-sub">seasonal · avg ${Number.isFinite(it.learnedSalePerDay) ? f(it.learnedSalePerDay) : "—"}</div>`;
+    }
+    if (!Number.isFinite(it.learnedSalePerDay)) return '<span class="cell-sub">—</span>';
+    return `${f(it.learnedSalePerDay)}<div class="cell-sub">all-time avg${it.projectionReadyOn ? ` · seasonal from ${fmtDate(it.projectionReadyOn)}` : ""}</div>`;
+  }
   function daysOfStock(it){
     const spd = saleRate(it);
     if (spd <= 0) return null;
@@ -2375,7 +2385,7 @@
       return Math.max(0, Math.ceil(TOPUP_TARGET_DAYS * spd - (Number(i.qty)||0)));
     };
     panel.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Item</th><th>WO requested</th><th class="num">Available</th><th class="num">On PO</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num" title="Units/day that actually left, from inventory snapshots with receipts and kitting netted out">Velocity<br><span style="font-weight:400;">30d · 7d</span></th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
+      <thead><tr><th>Item</th><th>WO requested</th><th class="num">Available</th><th class="num">On PO</th>${showStkCols ? `<th class="num">-STK qty</th><th class="num">-STKV3 qty</th>` : ""}${showStkCols ? "" : `<th class="num">Reorder at</th>`}<th>Status</th><th class="num">Sale/day</th><th class="num" title="Units/day that actually left, from inventory snapshots with receipts and kitting netted out">Velocity<br><span style="font-weight:400;">30d · 7d</span></th><th class="num" title="Learned from every day of tracked outflow since tracking began. Shows a seasonal projection (recent velocity scaled by the same stretch a year earlier) once a full year of history exists; until then, the all-time average with big one-off days capped.">Learned<br>sale/day</th><th class="num">Days left</th>${showStkCols ? `<th class="num">Kit to ${TOPUP_TARGET_DAYS}d</th>` : ""}<th>Vendor</th><th class="num">Unit cost</th><th></th></tr></thead>
       <tbody>
         ${rows.map(i => {
           const v = vendorById(i.vendorId);
@@ -2397,6 +2407,7 @@
             <td><span class="pill pill-${st.key}">${st.label}</span></td>
             <td class="num">${saleRateCell(i)}</td>
             <td class="num">${Number.isFinite(i.velocity30d) ? `${i.velocity30d.toLocaleString("en-US",{maximumFractionDigits:2})}<div class="cell-sub">${Number.isFinite(i.velocity7d) ? i.velocity7d.toLocaleString("en-US",{maximumFractionDigits:2}) : "—"} · ${Math.round(i.velocityDays||0)}d of data</div>` : '<span class="cell-sub">—</span>'}</td>
+            <td class="num">${learnedSaleCell(i)}</td>
             <td class="num">${days !== null ? Math.floor(days) + "d" : '<span class="cell-sub">—</span>'}</td>
             ${topUpCol}
             <td>${v ? esc(v.name) : '<span class="cell-sub">—</span>'}</td>

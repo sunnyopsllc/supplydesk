@@ -1,4 +1,4 @@
-import { outflowUnits, velocityPerDay, addTo, normalizeSku, isImportHeld, DAY_MS } from "./history.ts";
+import { outflowUnits, velocityPerDay, addTo, normalizeSku, isImportHeld, learnedSalePerDay, seasonalReadyOn, DAY_MS } from "./history.ts";
 
 function eq(a: unknown, b: unknown, msg: string) {
   if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${msg}: got ${JSON.stringify(a)} expected ${JSON.stringify(b)}`);
@@ -32,4 +32,29 @@ Deno.test("import hold lasts 3 days then expires", () => {
   eq(isImportHeld({ qtySource: "import", qtyImportedAt: at(73) }, now), false, "over 3 days expired");
   eq(isImportHeld({ qtyImportedAt: at(1) }, now), false, "no source -> not held");
   eq(isImportHeld({ qtySource: "import" }, now), false, "no date -> not held");
+});
+
+Deno.test("learned sale/day: lifetime average caps a one-off bulk day", () => {
+  const now = new Date("2026-11-04T12:00:00Z");
+  const start = new Date("2026-10-05T00:00:00Z"); // 31 days
+  const rows = Array.from({ length: 31 }, (_, i) => ({ day: new Date(Date.UTC(2026, 9, 5 + i)).toISOString().slice(0, 10), sku: "A", outflow: 10 }));
+  rows[10].outflow = 5000;
+  const l = learnedSalePerDay(rows, now, start).get("a")!;
+  if (!(l.lifetime! > 9 && l.lifetime! < 12)) throw new Error(`lifetime should ignore the bulk day, got ${l.lifetime}`);
+  eq(l.projected, null, "no projection before a year of history");
+});
+
+Deno.test("learned sale/day: projection scales recent rate by last year's change", () => {
+  const now = new Date("2026-11-04T12:00:00Z");
+  const start = new Date("2025-09-01T00:00:00Z");
+  const rows: { day: string; sku: string; outflow: number }[] = [];
+  for (let t = Date.parse("2025-09-01"); t <= Date.parse("2026-11-04"); t += DAY_MS) {
+    const day = new Date(t).toISOString().slice(0, 10);
+    // 10/day all year, but doubling in the 30 days after 2025-11-04 (a holiday-style peak)
+    const peak = t > Date.parse("2025-11-04") && t <= Date.parse("2025-12-04");
+    rows.push({ day, sku: "A", outflow: peak ? 20 : 10 });
+  }
+  const l = learnedSalePerDay(rows, now, start).get("a")!;
+  eq(l.projected, 20, "recent 10/day x 2.0 seasonal index");
+  eq(seasonalReadyOn(new Date("2026-10-14T00:00:00Z")), "2027-11-12", "ready 394 days after tracking began");
 });
