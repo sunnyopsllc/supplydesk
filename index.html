@@ -273,6 +273,17 @@
   #inv-panel thead th{
     position:sticky; top:0; background:var(--surface); z-index:4;
   }
+  /* Inventory: "Item" and "WO requested" stay put while the rest of the row scrolls sideways.
+     Fixed widths so the second column knows how far from the left edge to stick. */
+  #inv-panel th:nth-child(1), #inv-panel td:nth-child(1){ width:260px; min-width:260px; max-width:260px; white-space:normal; }
+  #inv-panel th:nth-child(2), #inv-panel td:nth-child(2){ width:210px; min-width:210px; max-width:210px; }
+  #inv-panel th:nth-child(1), #inv-panel td:nth-child(1),
+  #inv-panel th:nth-child(2), #inv-panel td:nth-child(2){ position:sticky; }
+  #inv-panel th:nth-child(1), #inv-panel td:nth-child(1){ left:0; }
+  #inv-panel th:nth-child(2), #inv-panel td:nth-child(2){ left:260px; box-shadow:inset -1px 0 0 var(--line); }
+  #inv-panel td:nth-child(1), #inv-panel td:nth-child(2){ background:var(--surface); z-index:3; }
+  #inv-panel tbody tr:hover td:nth-child(1), #inv-panel tbody tr:hover td:nth-child(2){ background:var(--surface-2); }
+  #inv-panel thead th:nth-child(1), #inv-panel thead th:nth-child(2){ z-index:5; }
   tbody td{ padding:11px 18px; border-bottom:1px solid var(--line); font-size:13.5px; vertical-align:middle; }
   tbody tr:last-child td{ border-bottom:none; }
   tbody tr:hover{ background:var(--surface-2); }
