@@ -1824,10 +1824,16 @@
     history: { title:"History", sub:"Recent changes and recovery points" }
   };
 
+  // Re-rendering replaces the tables, which would drop the page — and each table's own scroll —
+  // back to the top after any edit (setting "WO requested", etc.). Put both back where they were.
   function renderAll(){
+    const wraps = [...document.querySelectorAll(".view.active .table-wrap")].map(w => w.scrollTop);
+    const winY = window.scrollY;
     renderNav();
     renderPageChrome();
     renderView();
+    document.querySelectorAll(".view.active .table-wrap").forEach((w, i) => { if (wraps[i]) w.scrollTop = wraps[i]; });
+    if (window.scrollY !== winY) window.scrollTo(window.scrollX, winY);
   }
 
   function renderNav(){
